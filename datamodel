@@ -1,0 +1,113 @@
+"""
+what i want to do: 
+- reduce redundencies (i.e. passing around configurations);
+dependencies are passed around vis-a-vis a particular run index instead, maybe date, instead of a SET of configurations/reading folder names & matching. 
+
+- simplify workflow - reduce granularity of control over functions, i.e. no need to initialize main() for all .py
+presently there are 3 goals: 
+(1) full train on DESIRED d/p/hp
+(2) evaluation scoring for year-to-year dependencies (3y splits)
+(3) *internal validation to domain, cluster_num, optimize hp, *yearly splits
+(4) **setup.py, requirements.txt, Docker maybe?, data_load.py
+"""
+
+## present workflow: 
+
+domain, period, raw data, variables required => prepare data -> flattened normalized datasets (of particular d, p, hp)
+domain, period, hyperparam profile, flattened normalized datasets (of particular d, p, hp) => SOM train -> SOM model, SOM products
+SOM products => visualize (SOM scatterplot-dmap) -> SOM plot
+domain, period, hyperparam profile, SOM model => kmeans train -> kmeans scores, kmeans models
+domain, period, hyperparam profile, kmeans model => derive cluster => visualize -> RHUM & Quiver & RF plots 
+domain => generate domain permutations -> domains
+for d in domains: repeat training for all, SOM models => internal validation for (2-25) clusters -> elbow/CH/DBI plot, ybrick plt, DBSCAN plt, sil plots
+elbow/CH/DBI plot, ybrick plt, DBSCAN plt, sil plots => **HUMAN/MANUAL evaluation -> chosen cluster_num
+
+
+## desired workflow:
+
+(1) full-training for chosen d/p/hp into visualization (i.e. end-goal)
+domain, period, raw data, variables required => prepare data -> input dataset, flattened normalized datasets (of particular d, p, hp)
+hyperparam profile, flattened normalized datasets (of particular d, p, hp) => SOM train -> SOM model, SOM products
+SOM products => visualize (SOM scatterplot-dmap) -> SOM plot
+SOM model => kmeans train -> kmeans scores, kmeans models
+input dataset, kmeans model => utils (subsetting by desired cluster_num) -> input dataset with cluster memberships
+input dataset with cluster memberships => visualize -> RHUM & Quiver plots
+input dataset with cluster memberships => utils (subsetting by date) -> input dataset from desired cluster
+input dataset from desired cluster => visualize -> RF(avg) plots
+input dataset from desired cluster => evaluate (using bootstrap resampling) -> CI for RF(avg)
+CI for RF(avg) => visualize -> RF(lower-bound, upper-bound) plots
+
+
+(2) evaluation
+input dataset (of particular d,p), desired year "splits" => evaluate -> flattened normalized datasets (of particular d, p)
+flattened normalized datasets (of particular d, p) => utils (subsetting by desired split) -> x_train, x_test, y_train, y_test
+hyperparam profile, x_train => SOM train -> SOM model (for x_train)
+SOM model (for x_train) => kmeans train -> kmeans score, kmeans models
+kmeans models, x_train, y_train, y_test => utils (subsetting by desired cluster_num) => utils (subsetting by date) -> predicted RF arrays, "ground-truth" RF arrays
+predicted RF arrays, "ground-truth" RF arrays => evaluate (using bootstrap resampling) -> avg(ROC, AUC, Brier scores) for this cluster 
+
+
+(3) internal validation to determine appropriate domain (+ corresponding cluster_num), hp, & time-series/year splits
+** still not figured out, but this is crucial if the library is to be dispensed
+
+## desired workflow, higher-level (1024pm, 7Dec):
+
+(*) hyperparameter optimization
+
+(1) desired d/p/hp/cluster_num parameters, i.e. validation & parameter optimization
+(1*) bash script to initiate (2a), with Luigi to note required prerequisite parameters/files
+(1**) bash script calls python "DOMAIN generator" function, checks via Luigi if said parameters/outputs have been done, if so - SKIP! ==> this resolves memory issue by migrating to bash & using serial via Luigi/file-system checking
+(1a) train SOM + kmeans (*need class since saving as .pkl with self.cluster_num will allow for use in (3b))
+(1b) run validation metrices on clusters found
+(1c) acquire best cluster_num + domain/hp combination for that period
+
+(2) full train (with "Luigi"), based off desired d/p/hp/cluster_num parameters
+(2a) run (1a) 
+(2b) plot final output deliverables
+
+(3) final evaluation of fully trained model(s)
+(3*) bash script to initiate (3a), with Luigi to note required prerequisite parameters/files
+- fully trained model (d/p/hp, cluster_num)
+(3**) bash script calls python "d-p-hp-cluster_num SPLIT generator" function, checks via Luigi if said parameters/outputs have been done, if so - SKIP!
+(3a) full train for x_train here, based off chosen split
+(3b) acquire chosen cluster_num to subset y_train & y_test
+(3c) acquire evaluation statistics for y_train via bootstrap resampling + compare to "actual" RF (*need to save weights, just in case)
+(3d) summarize statistics across ALL splits
+
+## desired Makefile (to shutdown/reopen kernel & prevent garbage issues)/.py (easier syntax) commands
+- {with config having d/p/h} make validate4k
+- {with config having d/p/h/cluster_num} make trainmodel (**kwargs, i.e. cluster_num = #)
+- {with config having d/p/h/cluster_num/n_fold} make train_and_evaluate (**kwargs, i.e. cluster_num = #, n_fold = #)
+    -> note: if model is already trained, it'll use that one, otherwise, is just automated training
+- {with config having d/p/h} make multidomain_validate4k
+- {with config having d/p/h/cluster_num} make multidomain_trainmodel (**kwargs, i.e. [[{domain}, cluster_num], [{domain}, cluster_num], ...])
+- {with config having d/p/h/cluster_num/n_fold} make multidomain_train_and_evaluate (**kwargs, i.e. [[{domain}, cluster_num, n_fold], [{domain}, cluster_num, n_fold]])
+
+
+### desired initialization file(s)
+- function that runs (via Makefile or .py masterfile) which tracks changes in config.ini, or whatever settings.cfg/.ini and saves the old version by appending it to a params_history.txt
+
+
+
+#### readjusted API (10Dec 142pm)
+*. optimization of Hp (?)
+0. generation of k & constraining of domain (D, P, Hp)
+1. full model training & output visualization (D, P, Hp, k)
+2. evaluation (incls. (1.), provide DELTA/no. bootstraps, PSI/year codependency, D, P, Hp, k)
+3. evaluation w/o (1.), provide DELTA/no. bootstraps, PSI/year codependency, D, P, Hp, k) = note: you CANNOT evaluate without knowledge of k, unless (0.) is added into a new command (4. full-suite Hp optimization, k-generation, evaluation with DELTA & PSI, & full model output). 
+4. X! needs (0.) to be built.
+
+individual, INDEPENDENT modules: 0., 1., & 3. If *. is done, it will be INDEPENDENT as well. 
+
+problem 2: how to split the above into files?
+
+
+
+
+
+
+
+
+
+
+
