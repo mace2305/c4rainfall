@@ -27,7 +27,7 @@ def get_files(directory, exts=['.nc', '.nc4']):
     else:
         raise 'Uh oh'
     
-def is_NE_mon(month): return (month <=3) | (month==11) 
+def is_NE_mon(month): return (month <=3) | (month >=11) 
 
 def is_SW_mon(month): return (month >=6) & (month <=9)
 
@@ -106,7 +106,7 @@ def preprocess_time_series(model, dest, desired_res=0.75):
     # removing NA rows, supraneous dates, & coarsening dates accordingly
     print(f'{utils.time_now()} - Preprocessing data now.\n')
     
-    # rf_target_ds['time'] =  rf_target_ds.indexes['time'].to_datetimeindex() #converting CFTimeIndex -> DateTime Index 
+    rf_target_ds['time'] =  rf_target_ds.indexes['time'].to_datetimeindex() #converting CFTimeIndex -> DateTime Index 
 
     earliest_rf_reading, latest_rf_reading =  rf_target_ds.isel(time=0).time.values,  rf_target_ds.isel(time=-1).time.values
     earliest_target_ds_reading, latest_target_ds_reading = target_ds.isel(time=0).time.values, target_ds.isel(time=-1).time.values
@@ -121,7 +121,7 @@ def preprocess_time_series(model, dest, desired_res=0.75):
     valid_dates = [date for date in target_ds.time.data if date not in more_time_gaps]
     target_ds = target_ds.sel(time = valid_dates)
     coarsen_magnitude = int(desired_res/np.ediff1d(target_ds.isel(lon=slice(0,2)).lon.data)[0])
-    print(f'Coarsen magnitude set at: {coarsen_magnitude}')
+    print(f'Coarsen magnitude set at: {coarsen_magnitude} toward desired spatial resolu. of {desired_res}')
     target_ds_preprocessed = target_ds.coarsen(lat=coarsen_magnitude, lon=coarsen_magnitude, boundary='trim').mean()
         
     target_ds_preprocessed_path = utils.to_pickle('target_ds_preprocessed', target_ds_preprocessed, dest)

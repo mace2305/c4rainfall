@@ -131,7 +131,7 @@ class TopLevelModel:
         try: os.mkdir(fr"{prepared_data_dir}")
         except OSError: pass # folder already exists
 
-        prepared_data_dir = prepared_data_dir / self.period 
+        prepared_data_dir = str(prepared_data_dir / self.period)
         try: os.mkdir(fr"{prepared_data_dir}")
         except OSError: pass # folder already exists
         self.prepared_data_dir = prepared_data_dir
@@ -166,13 +166,14 @@ class TopLevelModel:
             LocalModelParams(self, utils.open_pickle(self.target_ds_preprocessed_path)) # generate new local model params
 
             self.standardized_stacked_arr_path = prepare.flatten_and_standardize_dataset(self, self.prepared_data_dir)
+        print(f'--> Months for this dataset are: {self.month_names}\n')
 
     def train_SOM(self):
         models_dir_path = utils.models_dir / self.dir_hp_str
         try: os.mkdir(fr"{models_dir_path}")
         except OSError: pass # folder already exists
 
-        models_dir_path = models_dir_path / self.period
+        models_dir_path = str(models_dir_path / self.period) + f'_{self.month_names_joined}'
         try: os.mkdir(fr"{models_dir_path}")
         except OSError: pass # folder already exists
         self.models_dir_path = models_dir_path
@@ -191,7 +192,10 @@ class TopLevelModel:
                         standardized_stacked_arr.shape[1],
                         sigma=self.sigma, learning_rate=self.learning_rate,
                         neighborhood_function='gaussian', random_seed=self.random_seed)
-            som.pca_weights_init(standardized_stacked_arr)
+            try:
+                som.pca_weights_init(standardized_stacked_arr)
+            except MemoryError as e:
+                print(f'Memory error has occured: \n{e}')
             print(f"Initialization took {utils.time_since(sominitstarttime)}.\n")
 
             trainingstarttime = timer(); print(f"\n{utils.time_now()} - Beginning training.")
@@ -233,7 +237,7 @@ class TopLevelModel:
         try: os.mkdir(fr"{metrics_dir}")
         except OSError: pass # folder already exists
 
-        metrics_dir = metrics_dir / self.period 
+        metrics_dir = str(metrics_dir / self.period) + f'_{self.month_names_joined}'
         try: os.mkdir(fr"{metrics_dir}")
         except OSError: pass # folder already exists
         self.metrics_dir_path = metrics_dir
