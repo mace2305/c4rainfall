@@ -5,15 +5,17 @@
 - function to derive either 'suggested k' or 'No "k" detected'
 """
 
-import collections
 import utils
-import time
 from sklearn.cluster import KMeans, DBSCAN
 from sklearn.metrics import calinski_harabasz_score, davies_bouldin_score, silhouette_samples, silhouette_score
 from yellowbrick.cluster import KElbowVisualizer
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
+import collections, time, logging
+
+logger = logging.getLogger()
+print = logger.info
 
 def print_elbow_CH_DBI_plot(model, som_weights_to_nodes, up_to=26):
     ## Distortion "elbow method", CH-score & DBI indices plotted.

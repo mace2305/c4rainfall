@@ -8,14 +8,15 @@
 - standardization/scaling of dataarrays
 """
 import utils
-import time
-import datetime
 import xarray as xr
 import numpy as np
 from pathlib import Path
 from timeit import default_timer as timer
 from sklearn.preprocessing import minmax_scale, RobustScaler
-import os, configparser
+import os, time, datetime, configparser, logging, sys
+
+logger = logging.getLogger()
+print = logger.info
 
 
 def get_files(directory, exts=['.nc', '.nc4']):
@@ -33,34 +34,51 @@ def is_SW_mon(month): return (month >=6) & (month <=9)
 
 def is_inter_mon(month): return (month == 4) | (month == 5) | (month == 10) | (month == 11)
 
-def save_preloaded_raw_data(model, raw_inputs_dir, raw_rf_dir):
-    input_fpaths = get_files(raw_inputs_dir)
-    rf_fpaths = get_files(raw_rf_dir)
-    CHOSEN_VARS_ds = []
-    for var in model.CHOSEN_VARS:
-        CHOSEN_VARS_ds.append([rf"{_}" for _ in input_fpaths if f"{var}" in _])
+def prepare_input_data(model):
+    # these names are arbitrary. RF is gotten from NASA's GPM mission, hence the folder name.
+    # and the input parameters (RHUM, uwnd, vwnd) are from ECMWF's ERA dataset
+    lat_min, lat_max, lon_min, lon_max = model.domain_limits
+    raw_input_subdirs = [i for i in utils.raw_data_dir.glob('*downloadERA*')]
+    if raw_input_subdirs:
+        for subdir in raw_input_subdirs:
+            ltn, ltx, lnn, lnx = [int(num) for num in subdir.stem.split('_')[-4:]]
+            if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
+                return subdir
+    # FIXME: download procedure stick HERE
 
-    ds_CHOSEN_VARS_renamed = xr.open_mfdataset(CHOSEN_VARS_ds, chunks={'time':4}).rename({
-        'latitude':'lat', 'longitude':'lon', 'r':'rhum', 'u':'uwnd', 'v':'vwnd'
-    })
-    ds_RAINFALL = xr.open_mfdataset(rf_fpaths)
 
-    utils.to_pickle('ds_CHOSEN_VARS_renamed', ds_CHOSEN_VARS_renamed, raw_inputs_dir)
-    utils.to_pickle('ds_RAINFALL', ds_RAINFALL, raw_rf_dir)
-    return ds_CHOSEN_VARS_renamed, ds_RAINFALL
+def prepare_target_data(model):
+    lat_min, lat_max, lon_min, lon_max = model.domain_limits
+    raw_rf_subdirs = [i for i in utils.raw_data_dir.glob('*GPM*')]
+    if raw_rf_subdirs:
+        for subdir in raw_rf_subdirs:
+            ltn, ltx, lnn, lnx = [int(num) for num in subdir.stem.split('_')[-4:]]
+            if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
+                return subdir
+    # FIXME: download procedure stick HERE
 
 def prepare_dataset(model, dest):
-    cfg = utils.scan_for_cfgfile()
-    raw_inputs_dir = cfg.get('Paths', 'raw_inputs_dir')
-    raw_rf_dir = cfg.get('Paths', 'raw_rf_dir')
-    preloaded_pickles = utils.find('*.pkl', raw_inputs_dir)
-    if preloaded_pickles:
-        print('Preloaded raw data pickles found...', end=' ')
-        ds_CHOSEN_VARS_renamed = utils.open_pickle(utils.find('*.pkl', raw_inputs_dir)[0])
-        ds_RAINFALL = utils.open_pickle(utils.find('*.pkl', raw_rf_dir)[0])
+    
+    print(f'RAW inputs dir {model.raw_inputs_dir}, RAW rf dir = {model.raw_rf_dir}. self.domain_limits_str is {model.domain_limits_str}')
+    sys.exit()
+
+    # searching for raw data pickles
+    preloaded_input_pickles = utils.find('*.pkl', model.raw_inputs_dir)
+    if preloaded_input_pickles:
+        print('Preloaded raw INPUT data pickles found...', end=' ')
+        ds_CHOSEN_VARS_renamed = utils.open_pickle(utils.find('*.pkl', model.raw_inputs_dir)[0])
     else: 
-        print('Creating pickles of raw data...', end=' ')
-        ds_CHOSEN_VARS_renamed, ds_RAINFALL = save_preloaded_raw_data(model, raw_inputs_dir, raw_rf_dir)
+        print('Creating pickles of raw input data...', end=' ')
+        ds_CHOSEN_VARS_renamed = save_preloaded_raw_input_data(model, model.raw_inputs_dir)
+    
+    preloaded_input_pickles = utils.find('*.pkl', model.raw_rf_dir)
+    if preloaded_input_pickles:
+        print('Preloaded raw INPUT data pickles found...', end=' ')
+        ds_RAINFALL = utils.open_pickle(utils.find('*.pkl', model.raw_rf_dir)[0])
+    else: 
+        print('Creating pickles of raw input data...', end=' ')
+        ds_RAINFALL = save_preloaded_raw_rf_data(model, model.raw_rf_dir)
+
     print("Proceeding to do preliminary data cleaning...")
     ds_sliced = ds_CHOSEN_VARS_renamed.sel(
         level=slice(np.min(model.unique_pressure_lvls),np.max(model.unique_pressure_lvls)), 
@@ -73,8 +91,6 @@ def prepare_dataset(model, dest):
     ds_combined_sliced = xr.merge([ds_sliced_rhum_no925, ds_sliced_uwnd_only, ds_sliced_vwnd_only], compat='override')
 
     rf_ds_sliced = ds_RAINFALL.sel(lat=slice(model.LAT_S, model.LAT_N), lon=slice(model.LON_W,model.LON_E))
-    print(ds_combined_sliced)
-    print('\n\n\n\n', ds_RAINFALL)
     print('Pickling domain- & feature-constrained input & RF datasets...')
     if model.period == "NE_mon":
         input_ds = ds_combined_sliced.sel(time=is_NE_mon(ds_combined_sliced['time.month']))
@@ -94,6 +110,29 @@ def prepare_dataset(model, dest):
         input_ds_serialized_path = utils.to_pickle('raw_input_ds_inter_mon_serialized', input_ds, dest)
         rf_ds_serialized_path = utils.to_pickle('raw_rf_ds_inter_mon_serialized', rf_ds, dest)
         return input_ds_serialized_path, rf_ds_serialized_path
+
+
+def save_preloaded_raw_input_data(model):
+    input_fpaths = get_files(model.raw_inputs_dir)
+    CHOSEN_VARS_ds = []
+    for var in model.CHOSEN_VARS:
+        CHOSEN_VARS_ds.append([rf"{_}" for _ in input_fpaths if f"{var}" in _])
+
+    ds_CHOSEN_VARS_renamed = xr.open_mfdataset(CHOSEN_VARS_ds, chunks={'time':4}).rename({
+        'latitude':'lat', 'longitude':'lon', 'r':'rhum', 'u':'uwnd', 'v':'vwnd'
+    })
+
+    utils.to_pickle('ds_CHOSEN_VARS_renamed', ds_CHOSEN_VARS_renamed, model.raw_inputs_dir)
+    return ds_CHOSEN_VARS_renamed
+
+
+def save_preloaded_raw_rf_data(model):
+    rf_fpaths = get_files(model.raw_rf_dir)
+
+    ds_RAINFALL = xr.open_mfdataset(rf_fpaths)
+
+    utils.to_pickle('ds_RAINFALL', ds_RAINFALL, model.raw_rf_dir)
+    return ds_RAINFALL
 
 
 def preprocess_time_series(model, dest, desired_res=0.75):   

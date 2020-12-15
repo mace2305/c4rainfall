@@ -8,22 +8,20 @@ Y- "time.now()" function
 - (2) saving of objects/pickles
 """
 
-import configparser
-import argparse
-import time
-import pickle
-import fnmatch
-import datetime
 from timeit import default_timer as timer
 from pathlib import Path
 import numpy as np
-import os, configparser
+import argparse, time, pickle, fnmatch, datetime, os, configparser, logging
+
+logger = logging.getLogger()
+print = logger.info
 
 default_cfgfile = Path(__file__).resolve().parents[0] / './cfg.ini'
 logs_dir = Path(__file__).resolve().parents[1] / 'logs/'
 prepared_data_folder = Path(__file__).resolve().parents[1] / "data/prepared"
 models_dir = Path(__file__).resolve().parents[1] / 'models'
 metrics_dir = Path(__file__).resolve().parents[1] / 'metrics'
+raw_data_dir = Path(__file__).resolve().parents[1] / "data/raw"
 
 def datetime_now():
     return time.strftime(f"%Y-%m-%d_%H-%M-%S", time.localtime())

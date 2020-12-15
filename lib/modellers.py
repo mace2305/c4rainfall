@@ -52,19 +52,16 @@ Y_BETA_test_i/observed RF for cluster i of validation set, Y_BETA_test,
 
 """
 import utils, prepare, validation, visualization
-import os
-import calendar
-import logging
 from minisom import MiniSom
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from timeit import default_timer as timer
 from pathlib import Path
+from sklearn.cluster import KMeans, DBSCAN
 import numpy as np
 import xarray as xr
+import os, calendar, functools, logging
 
-# logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger()
-# logger.addHandler(logging.FileHandler(f'runtime_{utils.datetime_now()}.log', 'w'))
 print = logger.info
 
 class LocalModelParams:
@@ -97,7 +94,7 @@ class TopLevelModel:
                     "*","X", # 10, 11
                     "o"]
 
-    def __init__(self, domain, period, hyperparameters, k=0):
+    def __init__(self, domain, period, hyperparameters, domain_limits, k=0):
         self.LAT_S, self.LAT_N, self.LON_W, self.LON_E = domain
         self.domain = domain
         self.iterations, self.gridsize, self.training_mode, self.sigma, self.learning_rate, self.random_seed = hyperparameters
@@ -110,6 +107,8 @@ class TopLevelModel:
         self.RUN_time = utils.time_now()
         self._full_train = False
         self.visualized = False
+        self.domain_limits = domain_limits
+        self.domain_limits_str = '_'.join(str(i) for i in domain_limits)
         # evaluation params
         self.evaluated = False
         self.PSI = 0 # 3 means 3-year ground-truth, etc.
@@ -120,10 +119,10 @@ class TopLevelModel:
         TopLevelModel.detect_serialized_datasets(self)
 
     def __str__(self):
-        string =f'' \
+        string =f'\n' \
                 f'-----------------------------------------------------------------------------------------------------------------\n' \
                 f'TopLevelModel with parameters D:{self.domain}, P:{self.period}, HP:{self.hyperparameters}\n' \
-                f'Run-time started on {self.RUN_datetime}'
+                f' === Run-time started on {self.RUN_datetime}'
         return string
 
     def detect_serialized_datasets(self):
@@ -144,9 +143,13 @@ class TopLevelModel:
                 elif "rf_ds" in pkl: self.rf_ds_serialized_path = pkl
         else: 
             print('This domain-period combination has not been modelled before, proceeding to load & serialize raw data. ')
+            self.raw_input_dir = prepare.prepare_input_data(self)
+            self.raw_rf_dir = prepare.prepare_target_data(self)
+            print(f'Raw input datasets taken from @: \n{self.raw_input_dir}')
+            print(f'Raw rainfall datasets taken from @: \n{self.raw_rf_dir}')
             self.input_ds_serialized_path, self.rf_ds_serialized_path = prepare.prepare_dataset(self, self.prepared_data_dir)
-        print(f'Serialized input datasets @: {self.input_ds_serialized_path}\n'\
-              f'Serialized RF datasets @: {self.rf_ds_serialized_path}')
+        print(f'Serialized raw input datasets @: \n{self.input_ds_serialized_path}')
+        print(f'Serialized raw RF datasets @: \n{self.rf_ds_serialized_path}')
 
 
         if utils.find('*preprocessed.pkl', self.prepared_data_dir) and utils.find('*standardized_stacked_arr.pkl', self.prepared_data_dir):
@@ -180,10 +183,10 @@ class TopLevelModel:
         # utils.update_cfgfile('Paths', 'models_dir_path', self.models_dir_path)
 
         if utils.find('*som_model.pkl', self.models_dir_path):
-            print(f'\n{utils.time_now()} - SOM model trained before, skipping...')
+            print(f'{utils.time_now()} - SOM model trained before, skipping...')
             self.som_model_path = utils.find('*som_model.pkl', self.models_dir_path)[0]
         else:
-            print(f'\n{utils.time_now()} - No SOM model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
+            print(f'{utils.time_now()} - No SOM model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
 
             standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
 
@@ -196,29 +199,27 @@ class TopLevelModel:
             Note: initializing PCA for weights is faster (~1/2 hour), but for serialized arrays > 300mb, 
             chances are this will kill the RAM and halt the entire process. 
             """
-            #try:
-                #som.pca_weights_init(standardized_stacked_arr)
-            #except MemoryError as e:
-                #print(f'Memory error has occured: \n{e}')
+##            try:
+##                som.pca_weights_init(standardized_stacked_arr)
+##            except MemoryError as e:
+##                print(f'Memory error has occured: \n{e}')
             print(f"Initialization took {utils.time_since(sominitstarttime)}.\n")
 
-            trainingstarttime = timer(); print(f"\n{utils.time_now()} - Beginning training.")
+            trainingstarttime = timer(); print(f"{utils.time_now()} - Beginning training.")
             getattr(som, self.training_mode)(standardized_stacked_arr, self.iterations, verbose=True)
             q_error = np.round(som.quantization_error(standardized_stacked_arr), 2)
             print(f"Training complete. Q error is {q_error}, time taken for training is {utils.time_since(trainingstarttime)}s\n")
 
-            self.som_model_path = utils.to_pickle(f'{self.RUN_datetime}_som_model', som, models_dir_path)
-            # utils.update_cfgfile('SOM', 'Train_date', utils.datetime_now()) # fucking key error
-            # utils.update_cfgfile('SOM', 'Path', self.som_model_path)
+            self.som_model_path = utils.to_pickle(f'{self.RUN_datetime}_som_model', som, self.models_dir_path)
     
     def detect_som_products(self):        
         for phrase in ('winner_coordinates', 'dmap', 'ar', 'som_weights_to_nodes'):
             if utils.find(f'*{phrase}.pkl', self.models_dir_path): 
                 p = utils.find(f'*{phrase}.pkl', self.models_dir_path)
-                print(f'\n{utils.time_now()} - {phrase} is found @ {p}')
+                print(f'{utils.time_now()} - {phrase} is found @: \n{p[0]}')
                 exec(f'self.{phrase}_path = {p}[0]')
             else:
-                print(f'\n{utils.time_now()} - Some SOM products found missing in, generating all products now...')
+                print(f'{utils.time_now()} - Some SOM products found missing in, generating all products now...')
                 som = utils.open_pickle(self.som_model_path)
                 standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
                 winner_coordinates = np.array([som.winner(x) for x in standardized_stacked_arr]) 
@@ -233,8 +234,9 @@ class TopLevelModel:
                 self.ar_path = utils.to_pickle('ar', ar, self.models_dir_path)
                 self.som_weights_to_nodes_path = utils.to_pickle('som_weights_to_nodes', som_weights_to_nodes, self.models_dir_path)
 
-                visualization.print_som_scatterplot_with_dmap(self)
-        print('\nAll SOM products generated.')
+                break
+
+        print('SOM products serialized.')
 
     def generate_k(self):
         metrics_dir = utils.metrics_dir / self.dir_hp_str 
@@ -250,7 +252,7 @@ class TopLevelModel:
         for phrase in ('sil_peaks', 'ch_max', 'dbi_min', 'reasonable_sil', 'ch_dbi_tally', 'n_expected_clusters', 'dbs_err_dict'):
             if utils.find(f'*{phrase}*.pkl', self.metrics_dir_path): pass
             else:
-                print(f'\n{utils.time_now()} - Not all metrices have been found in {self.metrics_dir_path}, generating them now...')
+                print(f'{utils.time_now()} - Not all metrices have been found in {self.metrics_dir_path}, generating them now...')
                 # print all metrices if even 1 not found
                 som_weights_to_nodes = utils.open_pickle(self.som_weights_to_nodes_path)
 
@@ -296,13 +298,117 @@ class TopLevelModel:
 
                 break
 
-        print(f'\n{utils.time_now()} - Internal validation of clusters has been run, please view metrices folder at:\n{self.metrics_dir_path} to determine optimal cluster number.')
-        print(f'\nAlternatively, folders have been generated for each discovered cluster combination. See\n{self.models_dir_path} for these plots.')
+        print(f'{utils.time_now()} - Internal validation of clusters has been run, please view metrices folder @:\n{self.metrics_dir_path} to determine optimal cluster number.\n'\
+            f'\nYou can view the separate folders constructed for each discovered cluster combination. See @: \n{self.models_dir_path}.')
 
+    def get_k(self, minimum_confidence=3, cluster_search_minimum=8):
+        """
+        This function automates looking through the models folder & determining by the number of positions/"awards"
+        whether the cluster number with the most number of "awards"
+        has at least a "minimum confidence".
+
+        Minimum_confidence is set at least 3, or at least 3 positions/awards for that cluster configuration to be given.
+        """
+        clusters_and_counts = [(int(str(i.stem).split('_')[0].split('-')[1]),
+                                len(str(i.stem).split('_')[1:])) for i in Path(self.models_dir_path).glob('*') if i.stem[0] == 'k']
+        best_cluster_num, highest_count = functools.reduce(lambda x,y: x if x[1] > y[1] else y, clusters_and_counts)
+        if (highest_count >= minimum_confidence) and (best_cluster_num >= cluster_search_minimum): 
+            self.optimal_k = best_cluster_num
+            for i in Path(self.models_dir_path).glob('**/*'): 
+                if i.match(f'*k-{best_cluster_num}_*'): 
+                    self.cluster_dir = i
+                    print(f'"cluster_dir" initialized @:\n{i}')
+                    return best_cluster_num
+        else:
+            self.optimal_k = None
+            return False
+
+
+    def train_kmeans(self):
+        if utils.find('*kmeans_model.pkl', self.cluster_dir):
+            print(f'{utils.time_now()} - KMeans model trained before, skipping...')
+            self.kmeans_model_path = utils.find('*kmeans_model.pkl', self.cluster_dir)[0]
+            for phrase in ('labels_ar', 'labels_to_coords', 'label_markers', 'target_ds_withClusterLabels', 'dates_to_ClusterLabels', 'RFprec_to_ClusterLabels_dataset'):
+                print(f'>>>>>>>>> "self.{phrase}_path" initialized.')
+                exec(f'self.{phrase}_path = utils.find(f\'*{phrase}*.pkl\', self.cluster_dir)[0]')
+
+        else:
+            print(f'{utils.time_now()} - No KMeans model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
+            som_weights_to_nodes = utils.open_pickle(self.som_weights_to_nodes_path)
+            samples, features = som_weights_to_nodes.shape
+            km = KMeans(n_clusters=self.optimal_k).fit(som_weights_to_nodes)
+            print(f"n{utils.time_now()} - K-means estimator fitted, sample size is {samples} and number of features is {features}.")
+
+            self.kmeans_model_path = utils.to_pickle(f'{self.RUN_datetime}_kmeans_model', km, self.cluster_dir)
+            self.serialize_kmeans_products(km)
+            
+
+    def serialize_kmeans_products(self, km):
+
+        standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
+        target_ds = utils.open_pickle(self.target_ds_preprocessed_path)
+        rf_ds_serialized = utils.open_pickle(self.rf_ds_serialized_path)
+
+        labels_ar = km.labels_
+        labels_to_coords = np.zeros([len(labels_ar), 2])
+        for i, var in enumerate(labels_ar): labels_to_coords[i] = i % self.gridsize, i // self.gridsize
+
+        try:
+            label_markers = np.array([self.uniq_markers[var] for i, var in enumerate(labels_ar)])
+        except IndexError: # more than 12 clusters
+            label_markers = np.array([(self.uniq_markers*3)[var] for i, var in enumerate(labels_ar)])
+        target_ds_withClusterLabels = target_ds.assign_coords(cluster=("time",
+                                                                       km.predict(standardized_stacked_arr.astype(np.float))))
+        dates_to_ClusterLabels = target_ds_withClusterLabels.cluster.reset_coords()
+        RFprec_to_ClusterLabels_dataset = xr.merge([rf_ds_serialized, dates_to_ClusterLabels])
+
+        self.labels_ar_path = utils.to_pickle(f'{self.RUN_datetime}_labels_ar', labels_ar, self.cluster_dir)
+        self.labels_to_coords_path = utils.to_pickle(f'{self.RUN_datetime}_labels_to_coords', labels_to_coords, self.cluster_dir)
+        self.label_markers_path = utils.to_pickle(f'{self.RUN_datetime}_label_markers', label_markers, self.cluster_dir)
+        self.target_ds_withClusterLabels_path = utils.to_pickle(f'{self.RUN_datetime}_target_ds_withClusterLabels', target_ds_withClusterLabels, self.cluster_dir)
+        self.dates_to_ClusterLabels_path = utils.to_pickle(f'{self.RUN_datetime}_dates_to_ClusterLabels', dates_to_ClusterLabels, self.cluster_dir)
+        self.RFprec_to_ClusterLabels_dataset_path = utils.to_pickle(f'{self.RUN_datetime}_RFprec_to_ClusterLabels_dataset', RFprec_to_ClusterLabels_dataset, self.cluster_dir)
+        
+
+    def print_outputs(self):
+        """
+        if xx model output not found in self.cluster_dir with model.RUN_time at start of name
+        """
+        for phrase in ('_prelim_SOMscplot_', '_kmeans-scplot_', '_ARmonthfrac_', '_RFplot_', '_qp-at', '_rhum-at'):
+            if utils.find(f'*{phrase}*.png', self.cluster_dir): pass
+            else:
+                print(f'{utils.time_now()} - Not all model outputs have been found in {self.cluster_dir}, generating them now...')
+                # print all visuals if even 1 not found
+                
+                visualization.print_som_scatterplot_with_dmap(self);
+                visualization.print_kmeans_scatterplot(self)
+                self.grid_width = visualization.grid_width(self.optimal_k)
+                self.cbar_pos = np.max([(((clus)//self.grid_width)*self.grid_width)
+                                        for i,clus in enumerate(np.arange(self.optimal_k))
+                                        if i==(((clus)//self.grid_width)*self.grid_width)])
+                visualization.print_ar_plot(self)
+                #FIXME: print_ar_plot_granular(self)
+                visualization.print_ar_plot_granular(self)
+                visualization.print_rf_plots(self)
+                visualization.print_quiver_plots(self)
+                visualization.print_rhum_plots(self)
+
+                break
+                
+        print(
+            f'Please open directory @: \n{self.cluster_dir}\n\nto view the clustering outputs for domain {self.domain} ({self.period}), '\
+            f'trained at {self.dir_hp_str} \nand 2nd-level k-means clustered with k at {self.optimal_k}.')
+
+    def nfold_cv_evaluation(self):
+        pass
+    
 if __name__ == "__main__":
     a = TopLevelModel([-12,28,90,120], "NE_mon", [80, 10, 'train_batch', 4, .15, 0])
     a.train_SOM()
     print(a.month_names)
     a.detect_som_products()
     a.generate_k()
-    print(a.n_datapoints)    
+    a.get_k() 
+    a.train_kmeans()
+    a.print_outputs()
+    a.nfold_cv_evaluation()
