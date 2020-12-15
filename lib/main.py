@@ -69,7 +69,10 @@ lon_min = np.min([i[2] for i in all_ds])
 lon_max = np.max([i[3] for i in all_ds])
 domain_limits = (lat_min, lat_max, lon_min, lon_max)
 
-modellers.TopLevelModel(domains_SW_mon[-1], "SW_mon", hpparam, domain_limits)
+try:
+    modellers.TopLevelModel(domains_SW_mon[-1], "SW_mon", hpparam, domain_limits)
+except:
+    logger.info('\n\n\nError:\n', exc_info=True)
 # seq_strings = "SW_mon", "NE_mon"
 # domains_NE_mon = []
 # for i,d in enumerate((domains_SW_mon, domains_NE_mon)):
@@ -84,7 +87,7 @@ modellers.TopLevelModel(domains_SW_mon[-1], "SW_mon", hpparam, domain_limits)
 #                 print('\n==> Clustering configuration sub-optimal, no outputs will be generated for\n' \
 #                     f'{p[0]} trained with hpparams {p[2]}')
 #         except:
-#             logger.info('Error:\n', exc_info=True)
+#             logger.info('\n\n\nError:======================\n\n', exc_info=True)
 #             continue
 
 

@@ -126,13 +126,13 @@ class TopLevelModel:
         return string
 
     def detect_serialized_datasets(self):
-        prepared_data_dir = utils.prepared_data_folder / self.dir_str
-        try: os.mkdir(fr"{prepared_data_dir}")
-        except OSError: pass # folder already exists
-
-        prepared_data_dir = str(prepared_data_dir / self.period)
-        try: os.mkdir(fr"{prepared_data_dir}")
-        except OSError: pass # folder already exists
+        self.raw_input_dir = prepare.prepare_input_data(self)
+        self.raw_rf_dir = prepare.prepare_target_data(self)
+        print(f'Raw input datasets taken from @: \n{self.raw_input_dir}')
+        print(f'Raw rainfall datasets taken from @: \n{self.raw_rf_dir}')
+        
+        prepared_data_dir = str(utils.prepared_data_folder / self.dir_str / self.period)
+        os.makedirs(prepared_data_dir, exist_ok=True)
         self.prepared_data_dir = prepared_data_dir
         # utils.update_cfgfile('Paths', 'prepared_data_dir', self.prepared_data_dir)
 
@@ -142,11 +142,7 @@ class TopLevelModel:
                 if "input_ds" in pkl: self.input_ds_serialized_path = pkl
                 elif "rf_ds" in pkl: self.rf_ds_serialized_path = pkl
         else: 
-            print('This domain-period combination has not been modelled before, proceeding to load & serialize raw data. ')
-            self.raw_input_dir = prepare.prepare_input_data(self)
-            self.raw_rf_dir = prepare.prepare_target_data(self)
-            print(f'Raw input datasets taken from @: \n{self.raw_input_dir}')
-            print(f'Raw rainfall datasets taken from @: \n{self.raw_rf_dir}')
+            print('Proceeding to load & serialize raw data. ')
             self.input_ds_serialized_path, self.rf_ds_serialized_path = prepare.prepare_dataset(self, self.prepared_data_dir)
         print(f'Serialized raw input datasets @: \n{self.input_ds_serialized_path}')
         print(f'Serialized raw RF datasets @: \n{self.rf_ds_serialized_path}')
@@ -172,13 +168,8 @@ class TopLevelModel:
         print(f'--> Months for this dataset are: {self.month_names}\n')
 
     def train_SOM(self):
-        models_dir_path = utils.models_dir / self.dir_hp_str
-        try: os.mkdir(fr"{models_dir_path}")
-        except OSError: pass # folder already exists
-
-        models_dir_path = str(models_dir_path / self.period) + f'_{self.month_names_joined}'
-        try: os.mkdir(fr"{models_dir_path}")
-        except OSError: pass # folder already exists
+        models_dir_path = str(utils.models_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
+        os.makedirs(models_dir_path, exist_ok=True)
         self.models_dir_path = models_dir_path
         # utils.update_cfgfile('Paths', 'models_dir_path', self.models_dir_path)
 
@@ -239,13 +230,8 @@ class TopLevelModel:
         print('SOM products serialized.')
 
     def generate_k(self):
-        metrics_dir = utils.metrics_dir / self.dir_hp_str 
-        try: os.mkdir(fr"{metrics_dir}")
-        except OSError: pass # folder already exists
-
-        metrics_dir = str(metrics_dir / self.period) + f'_{self.month_names_joined}'
-        try: os.mkdir(fr"{metrics_dir}")
-        except OSError: pass # folder already exists
+        metrics_dir = str(utils.metrics_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
+        os.makedirs(metrics_dir, exist_ok=True)
         self.metrics_dir_path = metrics_dir
         # utils.update_cfgfile('Paths', 'metrics_dir', self.metrics_dir_path)
 
@@ -282,10 +268,7 @@ class TopLevelModel:
                     if cluster_num == yellowbrick_expected_k: save_dir += '_Yellowbrickexpected-K'
                     if cluster_num in dbs_err_dict: save_dir += f'_DBSCANclusterErrorValsExpected-{dbs_err_dict[cluster_num]}'
 
-                    try: 
-                        os.mkdir(save_dir)
-                        print(f'Creating {save_dir}...')
-                    except OSError: pass # folder already exists
+                    os.makedirs(save_dir, exist_ok=True)
 
                 self.ch_max_path = utils.to_pickle("ch_max", ch_max, self.metrics_dir_path)
                 self.dbi_min_path = utils.to_pickle("dbi_min", dbi_min, self.metrics_dir_path)

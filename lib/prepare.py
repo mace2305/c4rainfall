@@ -13,7 +13,7 @@ import numpy as np
 from pathlib import Path
 from timeit import default_timer as timer
 from sklearn.preprocessing import minmax_scale, RobustScaler
-import os, time, datetime, configparser, logging, sys
+import os, time, datetime, configparser, logging, sys, cdsapi, toolz, subprocess
 
 logger = logging.getLogger()
 print = logger.info
@@ -34,6 +34,7 @@ def is_SW_mon(month): return (month >=6) & (month <=9)
 
 def is_inter_mon(month): return (month == 4) | (month == 5) | (month == 10) | (month == 11)
 
+
 def prepare_input_data(model):
     # these names are arbitrary. RF is gotten from NASA's GPM mission, hence the folder name.
     # and the input parameters (RHUM, uwnd, vwnd) are from ECMWF's ERA dataset
@@ -41,13 +42,30 @@ def prepare_input_data(model):
     raw_input_subdirs = [i for i in utils.raw_data_dir.glob('*downloadERA*')]
     if raw_input_subdirs:
         for subdir in raw_input_subdirs:
-            ltn, ltx, lnn, lnx = [int(num) for num in subdir.stem.split('_')[-4:]]
+            ltn, ltx, lnn, lnx = [float(num) for num in subdir.stem.split('_')[-4:]]
             if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
-                return subdir
-    # FIXME: download procedure stick HERE
+                if utils.find('*.nc', subdir):
+                    return subdir
+                else: 
+                    print(f'{subdir}\nis empty, no netcdf files found inside.')
 
+    print(f'{utils.datetime_now()} - No suitable raw input data found, attempting to spawn process for "dask_download.py".')
+    filen = Path(__file__).resolve().parents[0] / "dask_download.py"
+    cmd = f"python {filen} {lat_min} {lat_max} {lon_min} {lon_max}"
+    pipe = subprocess.Popen(cmd.split(' '))
+    pipe.wait()
+    print(f'{utils.datetime_now()} - Raw input data has been successfully acquired.')
+
+    new_path = utils.raw_data_dir / f"downloadERA_{lat_min}_{lat_max}_{lon_min}_{lon_max}"
+    os.makedirs(new_path, exist_ok=True)
+    return new_path
 
 def prepare_target_data(model):
+    """
+    more information can be acquired here: https://disc.gsfc.nasa.gov/datasets/GPM_3IMERGDF_06/summary
+    wget -r -c  -nH -nc -np -nd --user=XXX@EMAIL.com --password=XXX --auth-no-challenge --content-disposition -A nc4,xml "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDF.06/2007/"
+    generating a list of the above wget sentence, and then running them through console/terminal.
+    """
     lat_min, lat_max, lon_min, lon_max = model.domain_limits
     raw_rf_subdirs = [i for i in utils.raw_data_dir.glob('*GPM*')]
     if raw_rf_subdirs:
@@ -55,13 +73,13 @@ def prepare_target_data(model):
             ltn, ltx, lnn, lnx = [int(num) for num in subdir.stem.split('_')[-4:]]
             if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
                 return subdir
-    # FIXME: download procedure stick HERE
+    else:
+        raise(f'NO RAINFALL DATA FOUND @ {utils.raw_data_dir}')
+    # FIXME: secondary download procedure for GPM_3IMERG
+    # return new_dir
 
 def prepare_dataset(model, dest):
     
-    print(f'RAW inputs dir {model.raw_inputs_dir}, RAW rf dir = {model.raw_rf_dir}. self.domain_limits_str is {model.domain_limits_str}')
-    sys.exit()
-
     # searching for raw data pickles
     preloaded_input_pickles = utils.find('*.pkl', model.raw_inputs_dir)
     if preloaded_input_pickles:

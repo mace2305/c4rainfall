@@ -11,6 +11,7 @@ __pycache__/
 build/
 data/*
 datamodel
+dask-worker-space
 develop-eggs/
 dist/
 downloads/
