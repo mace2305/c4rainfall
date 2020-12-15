@@ -10,6 +10,7 @@ __pycache__/
 .Python
 build/
 data/*
+datamodel
 develop-eggs/
 dist/
 downloads/
@@ -17,6 +18,8 @@ eggs/
 .eggs/
 # lib/
 lib64/
+metrics/*
+models/*
 parts/
 sdist/
 var/

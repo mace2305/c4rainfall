@@ -192,10 +192,14 @@ class TopLevelModel:
                         standardized_stacked_arr.shape[1],
                         sigma=self.sigma, learning_rate=self.learning_rate,
                         neighborhood_function='gaussian', random_seed=self.random_seed)
-            try:
-                som.pca_weights_init(standardized_stacked_arr)
-            except MemoryError as e:
-                print(f'Memory error has occured: \n{e}')
+            """
+            Note: initializing PCA for weights is faster (~1/2 hour), but for serialized arrays > 300mb, 
+            chances are this will kill the RAM and halt the entire process. 
+            """
+            #try:
+                #som.pca_weights_init(standardized_stacked_arr)
+            #except MemoryError as e:
+                #print(f'Memory error has occured: \n{e}')
             print(f"Initialization took {utils.time_since(sominitstarttime)}.\n")
 
             trainingstarttime = timer(); print(f"\n{utils.time_now()} - Beginning training.")
