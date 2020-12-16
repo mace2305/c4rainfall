@@ -346,7 +346,7 @@ class TopLevelModel:
 
         standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
         target_ds = utils.open_pickle(self.target_ds_preprocessed_path)
-        rf_ds_serialized = utils.open_pickle(self.rf_ds_serialized_path)
+        rf_ds_preprocessed_path = utils.open_pickle(self.rf_ds_preprocessed_path)
 
         labels_ar = km.labels_
         labels_to_coords = np.zeros([len(labels_ar), 2])
@@ -356,10 +356,9 @@ class TopLevelModel:
             label_markers = np.array([self.uniq_markers[var] for i, var in enumerate(labels_ar)])
         except IndexError: # more than 12 clusters
             label_markers = np.array([(self.uniq_markers*3)[var] for i, var in enumerate(labels_ar)])
-        target_ds_withClusterLabels = target_ds.assign_coords(cluster=("time",
-                                                                       km.predict(standardized_stacked_arr.astype(np.float))))
+        target_ds_withClusterLabels = target_ds.assign_coords(cluster=("time", km.predict(standardized_stacked_arr.astype(np.float))))
         dates_to_ClusterLabels = target_ds_withClusterLabels.cluster.reset_coords()
-        RFprec_to_ClusterLabels_dataset = xr.merge([rf_ds_serialized, dates_to_ClusterLabels])
+        RFprec_to_ClusterLabels_dataset = xr.merge([rf_ds_preprocessed_path, dates_to_ClusterLabels])
 
         self.labels_ar_path = utils.to_pickle(f'{self.RUN_datetime}_labels_ar', labels_ar, self.cluster_dir)
         self.labels_to_coords_path = utils.to_pickle(f'{self.RUN_datetime}_labels_to_coords', labels_to_coords, self.cluster_dir)

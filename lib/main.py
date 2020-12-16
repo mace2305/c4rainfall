@@ -103,6 +103,7 @@ for i,d in enumerate((domains_SW_mon, domains_NE_mon)):
         except:
             logger.info('\n\n\nError:======================\n\n', exc_info=True)
             sys.exit()
+            # continue
 
 """
 Below are means to get flattened, standardized arrays. This allows user to manually copy these "prepared" datasets.pkl

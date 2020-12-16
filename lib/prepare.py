@@ -71,9 +71,9 @@ def get_raw_target_data(model):
     lat_min, lat_max, lon_min, lon_max = model.domain_limits
     raw_rf_subdirs = [i for i in utils.raw_data_dir.glob('*GPM*')]
 
-    return raw_rf_subdirs[0] # NOT implementing the below first (16Dec 340pm) as time-strapped.
-    # originally, the GPM folder is named "GPM_L3_-90_90_-180_180", now is it simply "GPM_L3"
-    # when the model is rerun on clean folder, the prepared dataset will reference such a folder
+    # return raw_rf_subdirs[0] # NOT implementing the below first (16Dec 340pm) as time-strapped.
+    # # originally, the GPM folder is named "GPM_L3_-90_90_-180_180", now is it simply "GPM_L3"
+    # # when the model is rerun on clean folder, the prepared dataset will reference such a folder
 
     if raw_rf_subdirs:
         for subdir in raw_rf_subdirs:

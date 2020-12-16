@@ -21,6 +21,8 @@ from timeit import default_timer as timer
 from sklearn.preprocessing import minmax_scale, RobustScaler
 import collections, gc, time, logging
 
+mpl.rcParams['savefig.dpi'] = 300
+
 logger = logging.getLogger()
 mpl_logger = logging.getLogger('matplotlib')
 mpl_logger.setLevel(logging.WARNING)
@@ -81,7 +83,7 @@ def print_som_scatterplot_with_dmap(model):
     # data_prof_save_dir, startlooptime, model.month_names_joined):
     ## plot 1: dmap + winner scatterplot, obtained via SOM
     
-    som_splot_withdmap_starttime = timer(); print("Drawing SOM scatterplot with distance map now.")
+    som_splot_withdmap_starttime = timer(); print(f"{utils.time_now()} - Drawing SOM scatterplot with distance map now.")
     
     iterations, gridsize, training_mode, sigma, learning_rate, random_seed = model.hyperparameters
     fig, ax_dmap_splot = create_solo_figure()
@@ -149,7 +151,7 @@ def print_som_scatterplot_with_dmap(model):
 
 def print_kmeans_scatterplot(model):
             
-    start_kmeanscatter = timer(); print("\nstarting kmeans scatterplot now...")
+    start_kmeanscatter = timer(); print(f"{utils.time_now()} - starting kmeans scatterplot now...")
     
     dmap = utils.open_pickle(model.dmap_path)
     labels_ar = utils.open_pickle(model.labels_ar_path)
@@ -205,7 +207,7 @@ def print_kmeans_scatterplot(model):
 
 def print_ar_plot(model):
     
-    ARMonthFracstarttime = timer(); print("\nstarting ar drawing now...")
+    ARMonthFracstarttime = timer(); print(f"{utils.time_now()} - starting ar drawing now...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
@@ -268,7 +270,7 @@ def print_rf_plots(model):
         ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
         ax_rf_plot.set_facecolor('white')
         ax_rf_plot.add_feature(cf.LAND, facecolor='silver')
-        ax_rf_plot.set_extent([model.LON_W-2, model.LON_E+2, model.LAT_S-1, model.LAT_N+1])
+        ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
         ax_rf_plot.coastlines("10m")
 
         if clus < model.grid_width: # top ticks  
@@ -311,7 +313,7 @@ def print_rf_plots(model):
 
 def print_quiver_plots(model):
         
-    quiverstarttime = timer(); print("\n\nDrawing quiver sub-plots now...")
+    quiverstarttime = timer(); print(f"{utils.time_now()} - Drawing quiver sub-plots now...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
@@ -340,7 +342,7 @@ def print_quiver_plots(model):
             ax_qp.yaxis.set_major_formatter(model.lat_formatter)
             ax_qp.set_facecolor('white')
             ax_qp.add_feature(cf.LAND,facecolor='silver')
-            ax_qp.set_extent([model.LON_W-2, model.LON_E+2, model.LAT_S-1, model.LAT_N+1])
+            ax_qp.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
             ax_qp.coastlines("110m")
 
             if cluster < model.grid_width: # top ticks    
@@ -361,17 +363,15 @@ def print_quiver_plots(model):
             
             print(f"{utils.time_now()} Beginning contourf & quiver plots... ")
             time.sleep(1); gc.collect()
-            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids); print('CP1')
+            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids); 
             time.sleep(1); gc.collect()
-            u = uwnd_gridded_centroids/wndspd; print('CP2')
-            v = vwnd_gridded_centroids/wndspd; print('CP3')
+            u = uwnd_gridded_centroids/wndspd; 
+            v = vwnd_gridded_centroids/wndspd; 
             spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,10), 
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
-                                      alpha=0.55)
-            print('CP4')
-            time.sleep(1); gc.collect()
+                                      alpha=0.65)
             Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=2, scale=20)  
-            print('CP5..! ')
+            print('CP..! ')
             time.sleep(1); gc.collect()
 
             if cluster == model.cbar_pos: # cbar
@@ -382,7 +382,7 @@ def print_quiver_plots(model):
                 cbar_qp.ax.xaxis.set_ticks_position('top')
                 cbar_qp.ax.xaxis.set_label_position('top')
 
-        print(f"\n\nQuiver plots plotted for {pressure}hpa")   
+        print(f"=> Quiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
         fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
@@ -394,7 +394,7 @@ def print_quiver_plots(model):
 
 def print_rhum_plots(model):
     
-    rhumstarttime = timer(); print("Finishing RHUM plots...")
+    rhumstarttime = timer(); print(f"{utils.time_now()} - Finishing RHUM plots...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
@@ -433,22 +433,22 @@ def print_rhum_plots(model):
             else: ax_rhum.set_title(f"cluster no.{cluster+1}", loc='left')
 
             print("Plotting contourf now.")
-            normi = mpl.colors.Normalize(vmin=model.min_maxes['rhum_min'], vmax=model.min_maxes['rhum_max'])
+            normi = mpl.colors.Normalize(vmin=model.min_maxes['rhum_min'], vmax=model.min_maxes['rhum_max']);
             Rhum = ax_rhum.contourf(model.X, model.Y, rhum_gridded_centroids,
                                     np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),
-                                    norm=normi, extend='both', cmap='RdBu', alpha=0.7)
+                                    norm=normi, extend='both', cmap='RdBu', alpha=0.7);
 
             if cluster == model.cbar_pos: # cbar
                 axins_rhum = inset_axes(ax_rhum, width='100%', height='100%', 
                                         loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1), 
-                                        bbox_transform=ax_rhum.transAxes)
-                cbar_rhum = fig.colorbar(Rhum, cax=axins_rhum, label='Relative humidity (%)', orientation='horizontal', pad=0.01)
+                                        bbox_transform=ax_rhum.transAxes);
+                cbar_rhum = fig.colorbar(Rhum, cax=axins_rhum, label='Relative humidity (%)', orientation='horizontal', pad=0.01);
                 cbar_rhum.ax.xaxis.set_ticks_position('top')
                 cbar_rhum.ax.xaxis.set_label_position('top')
 
             print(f"{utils.time_now()} - clus {cluster}")
 
-        print(f"\n\nRhum plots plotted for {pressure}hpa")
+        print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
         fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
