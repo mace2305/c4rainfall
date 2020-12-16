@@ -34,8 +34,7 @@ def is_SW_mon(month): return (month >=6) & (month <=9)
 
 def is_inter_mon(month): return (month == 4) | (month == 5) | (month == 10) | (month == 11)
 
-
-def prepare_input_data(model):
+def get_raw_input_data(model):
     # these names are arbitrary. RF is gotten from NASA's GPM mission, hence the folder name.
     # and the input parameters (RHUM, uwnd, vwnd) are from ECMWF's ERA dataset
     lat_min, lat_max, lon_min, lon_max = model.domain_limits
@@ -43,12 +42,14 @@ def prepare_input_data(model):
     if raw_input_subdirs:
         for subdir in raw_input_subdirs:
             ltn, ltx, lnn, lnx = [float(num) for num in subdir.stem.split('_')[-4:]]
-            if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
+            print(f'Required domain limits: {lat_min} {lat_max} {lon_min} {lon_max}\n'\
+                f'Current input data domain limits: {ltn} {ltx} {lnn} {lnx}')
+            if (ltn <= lat_min) & (ltx >= lat_max) & (lnn <= lon_min) & (lnx >= lon_max):
                 if utils.find('*.nc', subdir):
                     return subdir
                 else: 
                     print(f'{subdir}\nis empty, no netcdf files found inside.')
-
+    print('FAULTY'); sys.exit()
     print(f'{utils.datetime_now()} - No suitable raw input data found, attempting to spawn process for "dask_download.py".')
     filen = Path(__file__).resolve().parents[0] / "dask_download.py"
     cmd = f"python {filen} {lat_min} {lat_max} {lon_min} {lon_max}"
@@ -60,7 +61,8 @@ def prepare_input_data(model):
     os.makedirs(new_path, exist_ok=True)
     return new_path
 
-def prepare_target_data(model):
+
+def get_raw_target_data(model):
     """
     more information can be acquired here: https://disc.gsfc.nasa.gov/datasets/GPM_3IMERGDF_06/summary
     wget -r -c  -nH -nc -np -nd --user=XXX@EMAIL.com --password=XXX --auth-no-challenge --content-disposition -A nc4,xml "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDF.06/2007/"
@@ -68,6 +70,11 @@ def prepare_target_data(model):
     """
     lat_min, lat_max, lon_min, lon_max = model.domain_limits
     raw_rf_subdirs = [i for i in utils.raw_data_dir.glob('*GPM*')]
+
+    return raw_rf_subdirs[0] # NOT implementing the below first (16Dec 340pm) as time-strapped.
+    # originally, the GPM folder is named "GPM_L3_-90_90_-180_180", now is it simply "GPM_L3"
+    # when the model is rerun on clean folder, the prepared dataset will reference such a folder
+
     if raw_rf_subdirs:
         for subdir in raw_rf_subdirs:
             ltn, ltx, lnn, lnx = [int(num) for num in subdir.stem.split('_')[-4:]]
@@ -78,24 +85,32 @@ def prepare_target_data(model):
     # FIXME: secondary download procedure for GPM_3IMERG
     # return new_dir
 
+
 def prepare_dataset(model, dest):
-    
+    """
+    - restricting to certain variables + "levels" of variables
+    - combining variables xarrays into one
+    - restricting to only between 1999 to 2019
+    - slicing domain dimensions up to required specs (i.e. model.LON_S, model.LON_N, etc...)
+    - slicing up to chosen period only
+    - pickling the datasets (both input & rainfall) & returning them
+    """
     # searching for raw data pickles
-    preloaded_input_pickles = utils.find('*.pkl', model.raw_inputs_dir)
+    preloaded_input_pickles = utils.find('*.pkl', model.raw_input_dir)
     if preloaded_input_pickles:
-        print('Preloaded raw INPUT data pickles found...', end=' ')
-        ds_CHOSEN_VARS_renamed = utils.open_pickle(utils.find('*.pkl', model.raw_inputs_dir)[0])
+        print('Preloaded raw INPUT data pickles found...')
+        ds_CHOSEN_VARS_renamed = utils.open_pickle(utils.find('*.pkl', model.raw_input_dir)[0])
     else: 
-        print('Creating pickles of raw input data...', end=' ')
-        ds_CHOSEN_VARS_renamed = save_preloaded_raw_input_data(model, model.raw_inputs_dir)
+        print('Creating pickles of raw input data...')
+        ds_CHOSEN_VARS_renamed = save_preloaded_raw_input_data(model)
     
     preloaded_input_pickles = utils.find('*.pkl', model.raw_rf_dir)
     if preloaded_input_pickles:
-        print('Preloaded raw INPUT data pickles found...', end=' ')
+        print('Preloaded raw rainfall data pickles found...')
         ds_RAINFALL = utils.open_pickle(utils.find('*.pkl', model.raw_rf_dir)[0])
     else: 
-        print('Creating pickles of raw input data...', end=' ')
-        ds_RAINFALL = save_preloaded_raw_rf_data(model, model.raw_rf_dir)
+        print('Creating pickles of raw rainfall data...')
+        ds_RAINFALL = save_preloaded_raw_rf_data(model)
 
     print("Proceeding to do preliminary data cleaning...")
     ds_sliced = ds_CHOSEN_VARS_renamed.sel(
@@ -131,7 +146,7 @@ def prepare_dataset(model, dest):
 
 
 def save_preloaded_raw_input_data(model):
-    input_fpaths = get_files(model.raw_inputs_dir)
+    input_fpaths = get_files(model.raw_input_dir)
     CHOSEN_VARS_ds = []
     for var in model.CHOSEN_VARS:
         CHOSEN_VARS_ds.append([rf"{_}" for _ in input_fpaths if f"{var}" in _])
@@ -140,7 +155,7 @@ def save_preloaded_raw_input_data(model):
         'latitude':'lat', 'longitude':'lon', 'r':'rhum', 'u':'uwnd', 'v':'vwnd'
     })
 
-    utils.to_pickle('ds_CHOSEN_VARS_renamed', ds_CHOSEN_VARS_renamed, model.raw_inputs_dir)
+    utils.to_pickle('ds_CHOSEN_VARS_renamed', ds_CHOSEN_VARS_renamed, model.raw_input_dir)
     return ds_CHOSEN_VARS_renamed
 
 
@@ -153,17 +168,25 @@ def save_preloaded_raw_rf_data(model):
     return ds_RAINFALL
 
 
-def preprocess_time_series(model, dest, desired_res=0.75):   
+def preprocess_time_series(model, dest, nfold_ALPHA=None, desired_res=0.75):   
     """
     Preparing datasets for use in training algorithms
+    - dropping missing values
+    - ensuring both target & input datasets have same dates 
+    - coarsening spatial resolution of rainfall(target) dataset to desired resolution
+    - pickling these "preprocessed" datasets
     """
     target_ds = utils.open_pickle(model.input_ds_serialized_path)
     rf_target_ds = utils.open_pickle(model.rf_ds_serialized_path)
 
     # removing NA rows, supraneous dates, & coarsening dates accordingly
-    print(f'{utils.time_now()} - Preprocessing data now.\n')
+    print(f'{utils.time_now()} - Preprocessing data now.')
     
-    rf_target_ds['time'] =  rf_target_ds.indexes['time'].to_datetimeindex() #converting CFTimeIndex -> DateTime Index 
+    try:
+        rf_target_ds['time'] =  rf_target_ds.indexes['time'].to_datetimeindex() #converting CFTimeIndex -> DateTime Index 
+    except AttributeError:
+        print('AttributeError: \'DatetimeIndex\' object has no attribute \'to_datetimeindex\', continuing regardless...')
+        pass
 
     earliest_rf_reading, latest_rf_reading =  rf_target_ds.isel(time=0).time.values,  rf_target_ds.isel(time=-1).time.values
     earliest_target_ds_reading, latest_target_ds_reading = target_ds.isel(time=0).time.values, target_ds.isel(time=-1).time.values
@@ -183,28 +206,36 @@ def preprocess_time_series(model, dest, desired_res=0.75):
         
     target_ds_preprocessed_path = utils.to_pickle('target_ds_preprocessed', target_ds_preprocessed, dest)
     rf_ds_preprocessed_path = utils.to_pickle('rf_ds_preprocessed', rf_ds_preprocessed, dest)
+
+    target_ds_preprocessed = utils.remove_expver(target_ds_preprocessed)
+
+    if nfold_ALPHA:
+        for alpha in range(nfold_ALPHA):
+            pass
+
     return target_ds_preprocessed_path, rf_ds_preprocessed_path
 
 def flatten_and_standardize_dataset(model, dest):
 
     target_ds_preprocessed = utils.open_pickle(model.target_ds_preprocessed_path)
-
+    target_ds_preprocessed = utils.remove_expver(target_ds_preprocessed)
+    
     # reshaping
     reshapestarttime = timer(); print(f"{utils.time_now()} - Reshaping data now...")
-    print(f"\n{utils.time_now()} - reshaping rhum dataarrays now, total levels to loop: {model.rhum_pressure_levels}.", end=' ')
+    print(f"\n{utils.time_now()} - reshaping rhum dataarrays now, total levels to loop: {model.rhum_pressure_levels}.")
 
     reshaped_unnorma_darrays = {}
     reshaped_unnorma_darrays['rhum'], reshaped_unnorma_darrays['uwnd'], reshaped_unnorma_darrays['vwnd'] = {}, {}, {}
 
     for level in model.rhum_pressure_levels:
-        print(f'@{level}... ', end=' ')
+        print(f'@{level}... ')
         reshaped_unnorma_darrays['rhum'][level] = np.reshape(
             target_ds_preprocessed.rhum.sel(level=level).values, (model.n_datapoints, model.lat_size*model.lon_size ))
 
-    print(f"\n{utils.time_now()} - reshaping uwnd/vwnd dataarrays now, total levels to loop: {model.uwnd_vwnd_pressure_lvls}.", end=' ')
+    print(f"\n{utils.time_now()} - reshaping uwnd/vwnd dataarrays now, total levels to loop: {model.uwnd_vwnd_pressure_lvls}.")
 
     for level in model.uwnd_vwnd_pressure_lvls:
-        print(f'@{level}... ', end=' ')
+        print(f'@{level}... ')
         reshaped_unnorma_darrays['uwnd'][level] = np.reshape(
             target_ds_preprocessed.uwnd.sel(level=level).values, (model.n_datapoints, model.lat_size*model.lon_size ))
         reshaped_unnorma_darrays['vwnd'][level] = np.reshape(
@@ -213,13 +244,13 @@ def flatten_and_standardize_dataset(model, dest):
     reshapetime = timer()-reshapestarttime; reshapetime = str(datetime.timedelta(seconds=reshapetime)).split(".")[0]; print(f'Time taken: {reshapetime}s.\n')
 
     # stacking unstandardized dataarrays
-    stackingstarttime = timer(); print("Stacking unstandardized dataarrays now...", end=' ')
+    stackingstarttime = timer(); print("Stacking unstandardized dataarrays now...")
     stacked_unstandardized_ds = np.hstack([reshaped_unnorma_darrays[var][lvl] for var in reshaped_unnorma_darrays for lvl in reshaped_unnorma_darrays[var]])
 
     stackingtime = timer()-stackingstarttime; stackingtime = str(datetime.timedelta(seconds=stackingtime)).split(".")[0]; print(f'Time taken: {stackingtime}s.\n')
 
     # standardizing the stacked dataarrays
-    standardizestarttime = timer(); print("standardizing stacked dataarrays now...", end=' ')
+    standardizestarttime = timer(); print("standardizing stacked dataarrays now...")
     print(f'"stacked_unstandardized_ds.shape" is {stacked_unstandardized_ds.shape}')
     transformer = RobustScaler(quantile_range=(25, 75))
     standardized_stacked_arr = transformer.fit_transform(stacked_unstandardized_ds) # som & kmeans training

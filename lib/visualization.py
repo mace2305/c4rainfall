@@ -22,6 +22,8 @@ from sklearn.preprocessing import minmax_scale, RobustScaler
 import collections, gc, time, logging
 
 logger = logging.getLogger()
+mpl_logger = logging.getLogger('matplotlib')
+mpl_logger.setLevel(logging.WARNING)
 print = logger.info
     
     
@@ -206,6 +208,7 @@ def print_ar_plot(model):
     ARMonthFracstarttime = timer(); print("\nstarting ar drawing now...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
 
     fig, gs_ARMonthFrac = create_multisubplot_axes(model.optimal_k)
     half_month_names = np.ravel([(f'{i} 1st-half', f'{i} 2nd-half') for i in model.month_names])
@@ -246,7 +249,7 @@ def print_ar_plot_granular(model):
 
 def print_rf_plots(model):
 
-    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting rainfall now.\nTotal of {model.optimal_k} clusters, now printing cluster: ', end='')
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting rainfall now.\nTotal of {model.optimal_k} clusters, now printing cluster: ')
 
     RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
     labels_ar = utils.open_pickle(model.labels_ar_path)
@@ -295,7 +298,7 @@ def print_rf_plots(model):
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
-        print(f'\n{utils.time_now()}: {clus}.. ', end='');
+        print(f'\n{utils.time_now()}: {clus}.. ');
 
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
@@ -311,6 +314,7 @@ def print_quiver_plots(model):
     quiverstarttime = timer(); print("\n\nDrawing quiver sub-plots now...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
 
     skip_interval = 3
     lon_qp = model.X[::skip_interval].values
@@ -321,7 +325,7 @@ def print_quiver_plots(model):
         fig, gs_qp = create_multisubplot_axes(model.optimal_k)
 
         for cluster in range(model.optimal_k):
-            print(f"{utils.time_now()} - Cluster {cluster}: ", end='')
+            print(f"{utils.time_now()} - Cluster {cluster}: ")
             
             uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).uwnd.mean(
@@ -355,19 +359,19 @@ def print_quiver_plots(model):
                 ax_qp.set_title(f"Pressure: {pressure} hpa,\ncluster no.{cluster+1}", loc='left')
             else: ax_qp.set_title(f"cluster no.{cluster+1}", loc='left')
             
-            print(f"{utils.time_now()} Beginning contourf & quiver plots... ", end='')
+            print(f"{utils.time_now()} Beginning contourf & quiver plots... ")
             time.sleep(1); gc.collect()
-            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids); print('CP1', end=' ')
+            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids); print('CP1')
             time.sleep(1); gc.collect()
-            u = uwnd_gridded_centroids/wndspd; print('CP2', end=' ')
-            v = vwnd_gridded_centroids/wndspd; print('CP3', end=' ')
+            u = uwnd_gridded_centroids/wndspd; print('CP2')
+            v = vwnd_gridded_centroids/wndspd; print('CP3')
             spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,10), 
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
                                       alpha=0.55)
-            print('CP4', end=' ')
+            print('CP4')
             time.sleep(1); gc.collect()
             Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=2, scale=20)  
-            print('CP5', end='..! ')
+            print('CP5..! ')
             time.sleep(1); gc.collect()
 
             if cluster == model.cbar_pos: # cbar
@@ -378,7 +382,7 @@ def print_quiver_plots(model):
                 cbar_qp.ax.xaxis.set_ticks_position('top')
                 cbar_qp.ax.xaxis.set_label_position('top')
 
-        print(f"\n\nQuiver plots plotted for {pressure}hpa", end=' ')   
+        print(f"\n\nQuiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
         fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
@@ -393,15 +397,16 @@ def print_rhum_plots(model):
     rhumstarttime = timer(); print("Finishing RHUM plots...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
 
     for idx, pressure in enumerate(model.rhum_pressure_levels):
-        fig, gs_rhum = create_multisubplot_axes(model.grid_width)
+        fig, gs_rhum = create_multisubplot_axes(model.optimal_k)
 
         for cluster in range(model.optimal_k):
             rhum_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).rhum.mean("time")
 
-            print('Acquiring rhum cluster mean...', end=' ')
+            print('Acquiring rhum cluster mean...')
 
             ax_rhum = fig.add_subplot(gs_rhum[cluster], projection=ccrs.PlateCarree())
             ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
@@ -427,7 +432,7 @@ def print_rhum_plots(model):
                 ax_rhum.set_title(f"Pressure: {pressure} hpa,\ncluster no.{cluster+1}", loc='left')
             else: ax_rhum.set_title(f"cluster no.{cluster+1}", loc='left')
 
-            print("Plotting contourf now.", end=' ')
+            print("Plotting contourf now.")
             normi = mpl.colors.Normalize(vmin=model.min_maxes['rhum_min'], vmax=model.min_maxes['rhum_max'])
             Rhum = ax_rhum.contourf(model.X, model.Y, rhum_gridded_centroids,
                                     np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),

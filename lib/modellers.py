@@ -75,10 +75,9 @@ class LocalModelParams:
         model.years = np.unique(xr_dataset['time.year'].values) # unique years
         model.X, model.Y = xr_dataset.lon, xr_dataset.lat
     def __str__(self):
-        return str(self.__dict__)
+        return str(self.__dict__)  
 
 class TopLevelModel:
-
     CHOSEN_VARS = ["relative_humidity", "u_component_of_wind", "v_component_of_wind"]
     min_maxes={}
     min_maxes['air_min'], min_maxes['air_max'] = 6, 30 # for colorbar uniformity
@@ -94,7 +93,7 @@ class TopLevelModel:
                     "*","X", # 10, 11
                     "o"]
 
-    def __init__(self, domain, period, hyperparameters, domain_limits, k=0):
+    def __init__(self, domain, period, hyperparameters, domain_limits):
         self.LAT_S, self.LAT_N, self.LON_W, self.LON_E = domain
         self.domain = domain
         self.iterations, self.gridsize, self.training_mode, self.sigma, self.learning_rate, self.random_seed = hyperparameters
@@ -110,13 +109,9 @@ class TopLevelModel:
         self.domain_limits = domain_limits
         self.domain_limits_str = '_'.join(str(i) for i in domain_limits)
         # evaluation params
-        self.evaluated = False
-        self.PSI = 0 # 3 means 3-year ground-truth, etc.
-        self._totalALPHA = 0 
-        self.ALPHA = 0 # i.d. of PSI split dataset
-        
+        self.ALPHAs = None # i.d. of PSI split dataset, distributed automatically
+
         print(self)
-        TopLevelModel.detect_serialized_datasets(self)
 
     def __str__(self):
         string =f'\n' \
@@ -126,15 +121,18 @@ class TopLevelModel:
         return string
 
     def detect_serialized_datasets(self):
-        self.raw_input_dir = prepare.prepare_input_data(self)
-        self.raw_rf_dir = prepare.prepare_target_data(self)
-        print(f'Raw input datasets taken from @: \n{self.raw_input_dir}')
-        print(f'Raw rainfall datasets taken from @: \n{self.raw_rf_dir}')
-        
+        """
+        Finding raw data pickles.
+        If none found, proceed to creating pickles out of raw data.
+        calls - 
+        1. prepare.get_raw_input_data
+        2. prepare.get_raw_target_data
+        3. prepare.prepare_dataset
+        """
         prepared_data_dir = str(utils.prepared_data_folder / self.dir_str / self.period)
         os.makedirs(prepared_data_dir, exist_ok=True)
         self.prepared_data_dir = prepared_data_dir
-        # utils.update_cfgfile('Paths', 'prepared_data_dir', self.prepared_data_dir)
+        print(f'Looking for pickles in {self.prepared_data_dir}')
 
         if len(utils.find('*serialized.pkl', self.prepared_data_dir)) == 2:
             print('This domain-period combination has been serialized before, loading objects...')
@@ -143,11 +141,21 @@ class TopLevelModel:
                 elif "rf_ds" in pkl: self.rf_ds_serialized_path = pkl
         else: 
             print('Proceeding to load & serialize raw data. ')
+            self.raw_input_dir = prepare.get_raw_input_data(self)
+            self.raw_rf_dir = prepare.get_raw_target_data(self)
+            print(f'Raw input datasets taken from @: \n{self.raw_input_dir}')
+            print(f'Raw rainfall datasets taken from @: \n{self.raw_rf_dir}')
             self.input_ds_serialized_path, self.rf_ds_serialized_path = prepare.prepare_dataset(self, self.prepared_data_dir)
         print(f'Serialized raw input datasets @: \n{self.input_ds_serialized_path}')
         print(f'Serialized raw RF datasets @: \n{self.rf_ds_serialized_path}')
 
-
+    def detect_prepared_datasets(self):
+        """
+        Pre-processing, including time-slicing, removal of NAs, stacking & standardizing.
+        calls - 
+        1. prepare.preprocess_time_series
+        2. prepare.flatten_and_standardize_dataset`
+        """
         if utils.find('*preprocessed.pkl', self.prepared_data_dir) and utils.find('*standardized_stacked_arr.pkl', self.prepared_data_dir):
             print('Pickles (preprocessed) found.')
             for pkl in utils.find('*preprocessed.pkl', self.prepared_data_dir):
@@ -159,13 +167,14 @@ class TopLevelModel:
             for pkl in utils.find('*standardized_stacked_arr.pkl', self.prepared_data_dir):
                 self.standardized_stacked_arr_path = pkl
         else:
-            print('No pre-processed pickles captured previously. Proceeding to load & process raw dataset pickles.')
-            self.target_ds_preprocessed_path, self.rf_ds_preprocessed_path = prepare.preprocess_time_series(self, self.prepared_data_dir)
+            print('Pickles of pre-processed data incomplete. Proceeding to load & process raw dataset pickles.')
+            self.target_ds_preprocessed_path, self.rf_ds_preprocessed_path = prepare.preprocess_time_series(self, self.prepared_data_dir, self.ALPHAs)
 
             LocalModelParams(self, utils.open_pickle(self.target_ds_preprocessed_path)) # generate new local model params
 
             self.standardized_stacked_arr_path = prepare.flatten_and_standardize_dataset(self, self.prepared_data_dir)
         print(f'--> Months for this dataset are: {self.month_names}\n')
+
 
     def train_SOM(self):
         models_dir_path = str(utils.models_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
@@ -230,6 +239,11 @@ class TopLevelModel:
         print('SOM products serialized.')
 
     def generate_k(self):
+        """
+        - detection of metrices to infer "k", i.e. optimal_k value
+        - creation of metrices pickles 
+        - creation of folders in models_dir to indicate potential k values/cluster combinations
+        """
         metrics_dir = str(utils.metrics_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
         os.makedirs(metrics_dir, exist_ok=True)
         self.metrics_dir_path = metrics_dir
@@ -291,6 +305,8 @@ class TopLevelModel:
         has at least a "minimum confidence".
 
         Minimum_confidence is set at least 3, or at least 3 positions/awards for that cluster configuration to be given.
+        
+        - choosing the optimal "k" value
         """
         clusters_and_counts = [(int(str(i.stem).split('_')[0].split('-')[1]),
                                 len(str(i.stem).split('_')[1:])) for i in Path(self.models_dir_path).glob('*') if i.stem[0] == 'k']
@@ -384,7 +400,35 @@ class TopLevelModel:
 
     def nfold_cv_evaluation(self):
         pass
-    
+
+
+class AlphaLevelModel(TopLevelModel):
+    """
+    PSI = number of years taken as "ground-truth"/test set
+    PSI_overlap = number of years overlapping, currently #FIXME
+    """
+    def __init__(self, domain, period, hyperparameters, domain_limits, PSI=3, PSI_overlap=0):
+        super().__init__(domain, period, hyperparameters, domain_limits)
+        self.alpha = 0
+        if self.years % PSI:
+            self.ALPHAs = (self.years // PSI) + 1
+        else:
+            self.ALPHAs = self.years // PSI
+
+    def __str__(self):
+        orig_str = super().__str__()
+        return (f'{orig_str}\n===> Currently operating EVALUATION mode, self.ALPHAS is {self.ALPHAS}, & current alpha is: {self.alpha}.')
+
+    def prepare_nfold_datasets(self): # i.e. split into different train/ground-truth(test) dataset
+        pass
+
+    def evaluation_procedure(self):
+        """
+        AUC, Brier, probabilities, etc.
+        """
+        pass
+
+
 if __name__ == "__main__":
     a = TopLevelModel([-12,28,90,120], "NE_mon", [80, 10, 'train_batch', 4, .15, 0])
     a.train_SOM()

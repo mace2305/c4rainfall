@@ -69,7 +69,7 @@ def print_silhoutte_plots(model, som_weights_to_nodes, up_to=26):
 
     ## Silhoutte plots to determine manually optimal cluster num
     print("Drawing silhoutte plots now...")
-    fig = plt.figure(constrained_layout=True)
+    fig = plt.figure(constrained_layout=True);
     gs = fig.add_gridspec(len(range_n_clusters)+2, 2)
     fig.set_size_inches(11, 6*len(range_n_clusters))    
 

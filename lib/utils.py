@@ -23,6 +23,16 @@ models_dir = Path(__file__).resolve().parents[1] / 'models'
 metrics_dir = Path(__file__).resolve().parents[1] / 'metrics'
 raw_data_dir = Path(__file__).resolve().parents[1] / "data/raw"
 
+def remove_expver(xr_ds):
+    """
+    16Dec401pm: interim solution to remove this one variable introduced in the newly downloaded ERA datasets, dimension expver, only seen in 2020 datasets.
+    """
+    try:
+        xr_ds = xr_ds.drop('expver').isel(expver=0)
+    except ValueError: # in event there is no "expver" dimension, usually the case for not-current-year ERA datasets
+        pass
+    return xr_ds
+
 def datetime_now():
     return time.strftime(f"%Y-%m-%d_%H-%M-%S", time.localtime())
 
