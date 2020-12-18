@@ -17,6 +17,7 @@ from matplotlib import cm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from cartopy import feature as cf
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
+from shapely import geometry
 from timeit import default_timer as timer
 from sklearn.preprocessing import minmax_scale, RobustScaler
 import collections, gc, time, logging
@@ -459,7 +460,27 @@ def print_rhum_plots(model):
     print(f"\n\nTime taken to plot RHUM: {utils.time_since(rhumstarttime)}.")
     
 
+def get_domain_geometry(model, dest):
+    lat_s_lim, lat_n_lim, lon_w_lim, lon_e_lim = model.domain_limits
 
+    plt.figure(figsize=(8,10))
+    ax = plt.subplot(111, projection=ccrs.PlateCarree())
+    ax.xaxis.set_major_formatter(model.lon_formatter)
+    ax.yaxis.set_major_formatter(model.lat_formatter)
+    ax.set_extent([lon_w_lim, lon_e_lim, lat_s_lim, lat_n_lim])
+    ax.set_title(f'Map extent: longitudes {model.LON_W} to {model.LON_E}E, latitudes {model.LAT_S} to {model.LAT_N}N')
+    geom = geometry.box(minx=model.LON_W, maxx=model.LON_E, miny=model.LAT_S, maxy=model.LAT_N)
+    ax.add_geometries([geom], ccrs.PlateCarree(), alpha=0.3)
+    ax.set_facecolor('silver')
+    ax.add_feature(cf.LAND, facecolor='white')
+    ax.coastlines('110m')
+    ax.set_yticks(np.linspace(lat_s_lim, -lat_s_lim, 5), crs=ccrs.PlateCarree())
+    ax.set_xticks(np.linspace(lon_w_lim, lon_e_lim, 6), crs=ccrs.PlateCarree())
+
+    fn = f'{dest}/extent_{model.domain_limits_str}.png'
+    plt.savefig(fn)
+    print(f'Extent saved @:\n{fn}')
+    plt.close('all')
 
 
 

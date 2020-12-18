@@ -82,6 +82,7 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 testing.ipynb
+testing.html
 
 # IPython
 profile_default/
@@ -134,4 +135,4 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-logs/16Dec\ 915pm
+logs/*

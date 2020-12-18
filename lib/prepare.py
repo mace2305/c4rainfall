@@ -13,7 +13,7 @@ import numpy as np
 from pathlib import Path
 from timeit import default_timer as timer
 from sklearn.preprocessing import minmax_scale, RobustScaler
-import os, time, datetime, configparser, logging, sys, cdsapi, toolz, subprocess
+import os, time, datetime, configparser, logging, sys, cdsapi, toolz, subprocess, functools, gc
 
 logger = logging.getLogger()
 print = logger.info
@@ -88,6 +88,7 @@ def get_raw_target_data(model):
 
 def prepare_dataset(model, dest):
     """
+    - xr.open_mfdataset() = loading
     - restricting to certain variables + "levels" of variables
     - combining variables xarrays into one
     - restricting to only between 1999 to 2019
@@ -214,6 +215,48 @@ def preprocess_time_series(model, dest, nfold_ALPHA=None, desired_res=0.75):
             pass
 
     return target_ds_preprocessed_path, rf_ds_preprocessed_path
+
+def get_test_ds(model, alpha, dest, dataset_path, ds_name):
+    print('Attempting to get test set...')
+    dataset = utils.open_pickle(dataset_path)
+    if alpha != model.ALPHAs:
+        gt_years = model.tl_model.years[(alpha-1)*model.PSI : alpha*model.PSI]
+        gt_datasets = [utils.cut_year(dataset, gt_yr) for gt_yr in gt_years]
+        test = functools.reduce(lambda x,y: x.merge(y), gt_datasets)
+    else:
+        gt_years = model.tl_model.years[(alpha-1)*model.PSI : alpha*model.PSI+model.runoff_years] 
+        gt_datasets = [utils.cut_year(dataset, gt_yr) for gt_yr in gt_years]
+        test = functools.reduce(lambda x,y: x.merge(y), gt_datasets)
+    time.sleep(1)
+    gc.collect()
+    utils.to_pickle(f'{ds_name}_test_alpha_{alpha}_preprocessed', test, dest)
+
+def get_train_ds(model, alpha, dest, dataset_path, ds_name):
+    print('Attempting to get train set...')
+    dataset = utils.open_pickle(dataset_path)
+    if alpha != model.ALPHAs:
+        train_years = np.delete(model.tl_model.years, np.arange((alpha-1) * model.PSI, alpha * model.PSI))
+        train_datasets = [utils.cut_year(dataset, tr_yr) for tr_yr in train_years]
+        train = functools.reduce(lambda x,y: x.merge(y), train_datasets)
+    else:
+        train_years = np.delete(model.tl_model.years, np.arange((alpha-1)*model.PSI, alpha*model.PSI+model.runoff_years)) 
+        train_datasets = [utils.cut_year(dataset, tr_yr) for tr_yr in train_years]
+        train = functools.reduce(lambda x,y: x.merge(y), train_datasets)
+    time.sleep(1)
+    gc.collect()
+    utils.to_pickle(f'{ds_name}_train_alpha_{alpha}_preprocessed', train, dest)
+
+def cut_target_dataset(model, alpha, dest):
+    # cut_dataset(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
+    get_test_ds(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
+    get_train_ds(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
+    print(f'Input dataset split into train/test sets for alpha-{alpha}')
+
+def cut_rf_dataset(model, alpha, dest):
+    # cut_dataset(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
+    get_test_ds(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
+    get_train_ds(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
+    print(f'Rainfall dataset split into train/test sets for alpha-{alpha}')
 
 def flatten_and_standardize_dataset(model, dest):
 

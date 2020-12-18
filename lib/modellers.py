@@ -96,22 +96,18 @@ class TopLevelModel:
     def __init__(self, domain, period, hyperparameters, domain_limits):
         self.LAT_S, self.LAT_N, self.LON_W, self.LON_E = domain
         self.domain = domain
-        self.iterations, self.gridsize, self.training_mode, self.sigma, self.learning_rate, self.random_seed = hyperparameters
         d_str = '_'.join(str(i) for i in self.domain)
-        self.dir_hp_str = f'{d_str}_{self.iterations}iter_{self.gridsize}x{self.gridsize}_{self.sigma}sig_{self.learning_rate}lr'
         self.dir_str = f'{d_str}'
+        self.iterations, self.gridsize, self.training_mode, self.sigma, self.learning_rate, self.random_seed = hyperparameters
+        self.dir_hp_str = f'{d_str}_{self.iterations}iter_{self.gridsize}x{self.gridsize}_{self.sigma}sig_{self.learning_rate}lr'
         self.period = period
         self.hyperparameters = hyperparameters
         self.RUN_datetime = utils.datetime_now()
         self.RUN_time = utils.time_now()
-        self._full_train = False
-        self.visualized = False
         self.domain_limits = domain_limits
         self.domain_limits_str = '_'.join(str(i) for i in domain_limits)
         # evaluation params
         self.ALPHAs = None # i.d. of PSI split dataset, distributed automatically
-
-        print(self)
 
     def __str__(self):
         string =f'\n' \
@@ -173,10 +169,16 @@ class TopLevelModel:
             LocalModelParams(self, utils.open_pickle(self.target_ds_preprocessed_path)) # generate new local model params
 
             self.standardized_stacked_arr_path = prepare.flatten_and_standardize_dataset(self, self.prepared_data_dir)
-        print(f'--> Months for this dataset are: {self.month_names}\n')
+        print(f'--> Months for this dataset are: {self.month_names}')
 
 
     def train_SOM(self):
+        d_hp_dir_path = str(utils.models_dir / self.dir_hp_str)
+        self.d_hp_dir_path = d_hp_dir_path
+        os.makedirs(d_hp_dir_path, exist_ok=True)
+        if not utils.find('*extent*.png', self.d_hp_dir_path):
+            visualization.get_domain_geometry(self, self.d_hp_dir_path)
+            
         models_dir_path = str(utils.models_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
         os.makedirs(models_dir_path, exist_ok=True)
         self.models_dir_path = models_dir_path
@@ -316,6 +318,8 @@ class TopLevelModel:
             for i in Path(self.models_dir_path).glob('**/*'): 
                 if i.match(f'*k-{best_cluster_num}_*'): 
                     self.cluster_dir = i
+                    if not utils.find('*extent*.png', self.cluster_dir):
+                        visualization.get_domain_geometry(self, self.cluster_dir)
                     print(f'"cluster_dir" initialized @:\n{i}')
                     return best_cluster_num
         else:
@@ -324,22 +328,21 @@ class TopLevelModel:
 
 
     def train_kmeans(self):
-        if utils.find('*kmeans_model.pkl', self.cluster_dir):
-            print(f'{utils.time_now()} - KMeans model trained before, skipping...')
-            self.kmeans_model_path = utils.find('*kmeans_model.pkl', self.cluster_dir)[0]
-            for phrase in ('labels_ar', 'labels_to_coords', 'label_markers', 'target_ds_withClusterLabels', 'dates_to_ClusterLabels', 'RFprec_to_ClusterLabels_dataset'):
+        for phrase in ('kmeans_model', 'labels_ar', 'labels_to_coords', 'label_markers', 'target_ds_withClusterLabels', 'dates_to_ClusterLabels', 'RFprec_to_ClusterLabels_dataset'):
+            if utils.find(f'*{phrase}*.pkl', self.cluster_dir): 
                 print(f'>>>>>>>>> "self.{phrase}_path" initialized.')
                 exec(f'self.{phrase}_path = utils.find(f\'*{phrase}*.pkl\', self.cluster_dir)[0]')
+            else:
+                print(f'{utils.time_now()} - No KMeans model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
+                som_weights_to_nodes = utils.open_pickle(self.som_weights_to_nodes_path)
+                samples, features = som_weights_to_nodes.shape
+                km = KMeans(n_clusters=self.optimal_k).fit(som_weights_to_nodes)
+                print(f"n{utils.time_now()} - K-means estimator fitted, sample size is {samples} and number of features is {features}.")
 
-        else:
-            print(f'{utils.time_now()} - No KMeans model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
-            som_weights_to_nodes = utils.open_pickle(self.som_weights_to_nodes_path)
-            samples, features = som_weights_to_nodes.shape
-            km = KMeans(n_clusters=self.optimal_k).fit(som_weights_to_nodes)
-            print(f"n{utils.time_now()} - K-means estimator fitted, sample size is {samples} and number of features is {features}.")
+                self.kmeans_model_path = utils.to_pickle(f'{self.RUN_datetime}_kmeans_model', km, self.cluster_dir)
+                self.serialize_kmeans_products(km)
 
-            self.kmeans_model_path = utils.to_pickle(f'{self.RUN_datetime}_kmeans_model', km, self.cluster_dir)
-            self.serialize_kmeans_products(km)
+                break
             
 
     def serialize_kmeans_products(self, km):
@@ -394,38 +397,109 @@ class TopLevelModel:
                 break
                 
         print(
-            f'Please open directory @: \n{self.cluster_dir}\n\nto view the clustering outputs for domain {self.domain} ({self.period}), '\
-            f'trained at {self.dir_hp_str} \nand 2nd-level k-means clustered with k at {self.optimal_k}.')
-
-    def nfold_cv_evaluation(self):
-        pass
+            f'Outputs are available @: \n{self.cluster_dir}\n\nThese are clustering results for domain {self.domain} ({self.period}), '\
+            f'SOM-trained with hpparams {self.hyperparameters} \nand 2nd-level k-means clustered with k at {self.optimal_k}.')
 
 
 class AlphaLevelModel(TopLevelModel):
     """
-    PSI = number of years taken as "ground-truth"/test set
-    PSI_overlap = number of years overlapping, currently #FIXME
+    PSI is number of years taken together to be co-dependent & will be regarded as ground-truth.
+    Order of ground-truth group will be in ascending order from earliest year to latest, with overlaps according to PSI_overlap. 
     """
-    def __init__(self, domain, period, hyperparameters, domain_limits, PSI=3, PSI_overlap=0):
+    def __init__(self, tl_model, domain, period, hyperparameters, domain_limits, PSI=3, PSI_overlap=0):
         super().__init__(domain, period, hyperparameters, domain_limits)
-        self.alpha = 0
-        if self.years % PSI:
-            self.ALPHAs = (self.years // PSI) + 1
-        else:
-            self.ALPHAs = self.years // PSI
+        self.alpha = 1
+        self.PSI = PSI
+        self.PSI_overlap = PSI_overlap
+        self.nyears = len(tl_model.years)
+        self.ALPHAs = self.nyears // self.PSI
+        self.runoff_years = self.nyears % self.PSI
+        self.alpha_general_dir = Path(tl_model.models_dir_path) / f'*{self.ALPHAs}fold_cv_eval'
+        os.makedirs(self.alpha_general_dir, exist_ok=True)
+        self.tl_model = tl_model
 
     def __str__(self):
-        orig_str = super().__str__()
-        return (f'{orig_str}\n===> Currently operating EVALUATION mode, self.ALPHAS is {self.ALPHAS}, & current alpha is: {self.alpha}.')
+        string =f'\n' \
+                f'==~ ===~ =========~~ ==========~~~ ==================~~~~@@~~~~================== ~~~========== ~~========= ~=== ~==\n' \
+                f'AlphaLevelModel with ALPHAs:{self.ALPHAs}, PSI:{self.PSI}, PSI_overlap:{self.PSI_overlap}, ' \
+                f'"alpha_general_dir" @:\n{self.alpha_general_dir}\n' \
+                f' === Run-time started on {self.tl_model.RUN_datetime}'
+        return string
+
+        
+    def check_evaluated(self, section=0):
+        if section == 0: # i.e. whole model
+            print('Checking if model has been evaluated before...')
+            flag = [i.parent for i in Path(self.alpha_general_dir).glob(f'flag')]
+            if flag:
+                return flag[0]
+            else: return False
+        else:
+            flags = [i.parent.stem for i in Path(self.alpha_general_dir).glob(f'*/flag') if 'alpha' in str(i.parent.stem)]
+            if flags:
+                for i in flags:
+                    if int(i.split('_')[1]) == section: 
+                        self.alpha +=1
+                        return True
+            self.alpha_prepared_dir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{section}')
+            return False
+            #found = [i for i in Path(self.models_dir_path).glob(f'*alpha_{section}/flag')]
+            #if found:
+                #self.alpha +=1
+                #return True
+            #else: 
+                #return False
 
     def prepare_nfold_datasets(self): # i.e. split into different train/ground-truth(test) dataset
-        pass
+        """
+        Take previously pre-processed datasets & split into
+        input: x_train, x_test,
+        target/RF: y_train, y_test
+        """
+        for alpha in range(1, self.ALPHAs+1):
+            newdir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{alpha}')
+            os.makedirs(newdir, exist_ok=True)
+            
+            if utils.find(f'*alpha_{alpha}_preprocessed.pkl', newdir) and utils.find(f'*alpha_{alpha}_standardized_stacked_arr.pkl', newdir):
+                pass
+            else:
+                if not utils.find(f'*target*alpha_{alpha}_preprocessed.pkl', newdir):
+                    print(f"=> No input datasets pre-processed for alpha of {alpha}")
+                    prepare.cut_target_dataset(self, alpha, newdir)
+
+                if not utils.find(f'*rf*alpha_{alpha}_preprocessed.pkl', newdir):
+                    print(f"=> No rainfall datasets pre-processed for alpha of {alpha}")
+                    # prepare.cut_rf_dataset(self, alpha, newdir)
+
+                    prepare.get_test_ds(self, alpha, newdir, self.tl_model.rf_ds_preprocessed_path, 'rf_ds')
+                    prepare.get_train_ds(self, alpha, newdir, self.tl_model.rf_ds_preprocessed_path, 'rf_ds')
+                    print(f'Rainfall dataset split into train/test sets for alpha-{alpha}')
+                
+        print(f'Preprocessed pickles for alpha split {alpha} can be found @:\n{newdir}')           
+
+    def prepare_alphafold_dataset(self, alpha):
+        for pkl in utils.find(f'*alpha_{alpha}_preprocessed.pkl', self.alpha_prepared_dir):
+            if "target_ds" in pkl: self.target_ds_preprocessed_path = pkl
+            elif "rf_ds" in pkl: self.rf_ds_preprocessed_path = pkl
+        
+        LocalModelParams(self, utils.open_pickle(self.target_ds_preprocessed_path))
+
+        if utils.find('*standardized_stacked_arr.pkl', self.alpha_prepared_dir):
+            self.standardized_stacked_arr_path = utils.find(f'*alpha_{alpha}_standardized_stacked_arr.pkl', self.alpha_prepared_dir)[0]
+        else:
+            self.standardized_stacked_arr_path = prepare.flatten_and_standardize_dataset(self, self.alpha_prepared_dir)
+        print(f'--> Months for this dataset are: {self.month_names}')
+
 
     def evaluation_procedure(self):
         """
         AUC, Brier, probabilities, etc.
         """
         pass
+
+    def compile_scores(self):
+        pass
+
 
 
 if __name__ == "__main__":
@@ -437,4 +511,3 @@ if __name__ == "__main__":
     a.get_k() 
     a.train_kmeans()
     a.print_outputs()
-    a.nfold_cv_evaluation()

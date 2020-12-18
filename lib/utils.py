@@ -33,6 +33,9 @@ def remove_expver(xr_ds):
         pass
     return xr_ds
 
+def cut_year(xr_ds, year):
+    return xr_ds.sel(time=slice(f'{year}-01-01', f'{year}-12-31'))
+
 def datetime_now():
     return time.strftime(f"%Y-%m-%d_%H-%M-%S", time.localtime())
 

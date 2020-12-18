@@ -102,6 +102,193 @@ individual, INDEPENDENT modules: 0., 1., & 3. If *. is done, it will be INDEPEND
 problem 2: how to split the above into files?
 
 
+17 Dec funcs to links/attributes created
+** types of scoring = CONDITIONS:
+- > 1mm on grid = rain-day
+==> boolean
+- > 15mm on one day = heavy rain
+==> boolean
+- other random conditions (>=5mm, >=10mm, >=25mm...)
+
+** scoring:
+:: predict rain-day = T/F. True pos-s = correct prediction of grid outcome; vice versa. x_test is parsed through SOM -> kmeans -> 2nd-lvl cluster membership => via dates => y_pred (avg rainfall across grid for each cluster)
+= basic simple accuracy for y_pred vs y_true at all conditions (1-5, 6-10, etc.), for all clusters, across the grid, for this d/p/hp/alpha split/'fold', for given CONDITION
+= basic accuracy across all folds, across the grid for all d/p/hp, for given CONDITION
+=> product: gridded outputs for a given CONDITION indicating accuracy scores
+
+:: say for instance at SG is one lat/lon, that point through x_train has a proba of 0.7 to have >1mm for cluster 8 for xx d/p/hp. in the case of 0.7, that is ONE decision
+boundary/"threshold". vary DBs from 0.1 to 1.0 => the TP vs. FP for each can be gotten!
+= points on y_pred for each decision boundary, compare with y_true of that cluster => number TP/TN/FP/FN, for that cluster, for that decision boundary
+= number TP/TN/FP/FN for all decision boundary, for that cluster
+= AUC/ROC => TPR vs. FPR for all clusters, for that d/p/hp/alpha split ('fold')
+= mean ROC for that d/p/hp (all splits/'folds') with AUC +- CI
+:: sum up all TP/FP for each decision boundary across all splits & average = ROC curve
+=> product: mean ROC curve with multiple ROC curves for each n-th fold, for a given CONDITION, "averaged by threshold" (https://people.inf.elte.hu/kiss/11dwhdm/roc.pdf)
+
+:: x_train => clusters. y_train => RF for each cluster. x_test => separate to their clusters => y_pred is predicated RF for each cluster. y_test is the list of dates for each cluster, treated indepedently. However, instead of comparing y_pred (avg RF/cluster) vs y_test (list of G-T RFs for that cluster), take given CONDITION & compute proba for satisfying that CONDITION for y_train. Compare this proba to the proba of satisfying this condition for those in y_test => Brier scoring (means sq. error for proba predicted vs proba G-T), given a specific CONDITION.
+= Brier score (proba_pred vs. proba_true) across the grid (green for close to 0, red for close to 1) for that cluster, for that decision boundary, for that d/p/hp/alpha split (i.e. "taking this set of PSI-years as Ground-truth, how good is this model at predicting probabilities of RF for each cluster, for the specified decision boundary?")
+= avg Brier score across the grid for all clusters in that d/p/hp/alpha split, for that decision boundary
+= avg Brier score across the grid for all clusters for all alpha splits in that d/p/hp, for that decision boundary (i.e. "how good is this model at predicting RF across the region specified (d)?")
+= avg Brier scores across the grid for that cluster, for that decision boundary, for all alpha splits in that d/p/hp (i.e. "how good at predicting probability via this model (d/p/hp) for each cluster vs. another cluster")
+
+
+tl_model = TopLevelModel(d,p,hp,domain_limits)
+- self.LAT_S, self.LAT_N, self.LON_W, self.LON_E
+- self.domain
+- self.dir_str
+- self.iterations, self.gridsize, self.training_mode, self.sigma, self.learning_rate, self.random_seed
+- self.dir_hp_str
+- self.period
+- self.hyperparameters
+- self.RUN_datetime
+- self.RUN_time
+- self.domain_limits
+- self.domain_limits_str
+- self.ALPHAs
+
+alpha_model = AlphaLevelModel(tl_model) 
+- self.alpha
+- self.ALPHAs
+
+AlphaLevelModel.check_evaluated(alpha)
+- self.alpha_overall_dir (model_dir > alpha_overall_dir = find objs) 
+- self.Brier_overall_path
+- self.AUC_overall_path
+
+
+TopLevelModel.detect_serialized_datasets(self)
+- self.prepared_data_dir
+*- self.raw_input_dir
+*- self.raw_rf_dir
+- self.input_ds_serialized_path
+- self.rf_ds_serialized_path
+
+TopLevelModel.detect_prepared_datasets(self)
+- self.target_ds_preprocessed_path
+- self.rf_ds_preprocessed_path
+- self.standardized_stacked_arr_path
+
+TopLevelModel.train_SOM(self)
+- self.models_dir_path
+- self.som_model_path
+
+TopLevelModel.detect_som_products(self)
+- self.winner_coordinates_path
+- self.dmap_path
+- self.ar_path
+- self.som_weights_to_nodes_path
+
+TopLevelModel.generate_k(self)
+- self.metrics_dir_path
+- self.ch_max_path
+- self.dbi_min_path
+- self.sil_peaks_path
+- self.reasonable_sil_path
+- self.ch_dbi_tally_path
+- self.yellowbrick_expected_k_path
+- self.dbs_err_dict_path
+- self.n_expected_clusters_path
+
+TopLevelModel.get_k(self)
+- self.optimal_k
+*- self.cluster_dir
+
+TopLevelModel.train_kmeans(self)
+- self.kmeans_model_path
+*- self.labels_ar
+*- self.labels_to_coords
+*- self.label_markers
+*- self.target_ds_withClusterLabels
+*- self.dates_to_ClusterLabels
+*- self.RFprec_to_ClusterLabels_dataset
+
+TopLevelModel.serialize_kmeans_products(self)
+- self.labels_ar
+- self.labels_to_coords
+- self.label_markers
+- self.target_ds_withClusterLabels
+- self.dates_to_ClusterLabels
+- self.RFprec_to_ClusterLabels_dataset
+
+TopLevelModel.print_outputs(self)
+- NA
+
+AlphaLevelModel.evaluation_procedure(alpha)
+- 
+
+AlphaLevelModel.compile_scores()
+- 
+
+
+*- self.
+*- self.
+*- self.
+*- self.
+*- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+- self.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
