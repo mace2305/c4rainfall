@@ -51,12 +51,15 @@ Y_BETA_test_i/observed RF for cluster i of validation set, Y_BETA_test,
 
 
 """
-import utils, prepare, validation, visualization
+import utils, prepare, validation, visualization, evaluation
 from minisom import MiniSom
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from timeit import default_timer as timer
 from pathlib import Path
 from sklearn.cluster import KMeans, DBSCAN
+from scipy import interp
+from sklearn.metrics import roc_curve, auc, brier_score_loss
+from sklearn.preprocessing import minmax_scale, RobustScaler
 import numpy as np
 import xarray as xr
 import os, calendar, functools, logging
@@ -172,7 +175,7 @@ class TopLevelModel:
         print(f'--> Months for this dataset are: {self.month_names}')
 
 
-    def train_SOM(self):
+    def train_SOM(self, alpha=None):
         d_hp_dir_path = str(utils.models_dir / self.dir_hp_str)
         self.d_hp_dir_path = d_hp_dir_path
         os.makedirs(d_hp_dir_path, exist_ok=True)
@@ -184,13 +187,26 @@ class TopLevelModel:
         self.models_dir_path = models_dir_path
         # utils.update_cfgfile('Paths', 'models_dir_path', self.models_dir_path)
 
-        if utils.find('*som_model.pkl', self.models_dir_path):
-            print(f'{utils.time_now()} - SOM model trained before, skipping...')
-            self.som_model_path = utils.find('*som_model.pkl', self.models_dir_path)[0]
+        if alpha:
+            destination = self.alpha_model_dir
+            arr_path = self.alpha_standardized_stacked_arr_path
+            prefix = f'alpha_{alpha}_'
+            prompt = f'< alpha-{alpha} >'
         else:
-            print(f'{utils.time_now()} - No SOM model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
+            destination = self.models_dir_path
+            arr_path = self.standardized_stacked_arr_path
+            prefix = ''
+            prompt = ''
 
-            standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
+        print(f'Destination: "{destination}", arr_path: "{arr_path}", prefix: "{prefix}"')
+
+        if utils.find(f'*{prefix}som_model.pkl', destination):
+            print(f'{utils.time_now()} - SOM model trained before, skipping...')
+            self.som_model_path = utils.find(f'*{prefix}som_model.pkl', destination)[0]
+        else:
+            print(f'{utils.time_now()} - {prompt} No SOM model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
+
+            standardized_stacked_arr = utils.open_pickle(arr_path)
 
             sominitstarttime = timer(); print(f'{utils.time_now()} - Initializing MiniSom... ')
             som = MiniSom(self.gridsize, self.gridsize, # square
@@ -212,18 +228,32 @@ class TopLevelModel:
             q_error = np.round(som.quantization_error(standardized_stacked_arr), 2)
             print(f"Training complete. Q error is {q_error}, time taken for training is {utils.time_since(trainingstarttime)}s\n")
 
-            self.som_model_path = utils.to_pickle(f'{self.RUN_datetime}_som_model', som, self.models_dir_path)
+            if alpha: self.som_model_path = utils.to_pickle(f'{self.RUN_datetime}_{prefix}som_model', som, destination)
+            else: self.som_model_path = utils.to_pickle(f'{self.RUN_datetime}_{prefix}som_model', som, destination)
     
-    def detect_som_products(self):        
+    def detect_som_products(self, alpha=None):
+        if alpha:
+            destination = self.alpha_model_dir
+            arr_path = self.alpha_standardized_stacked_arr_path
+            prefix = f'alpha_{alpha}_'
+            prompt = f'< alpha-{alpha} >'
+        else:
+            destination = self.models_dir_path
+            arr_path = self.standardized_stacked_arr_path
+            prefix = ''
+            prompt = ''
+
+        print(f'Destination: "{destination}", arr_path: "{arr_path}", prefix: "{prefix}", prompt:"{prompt}"')
+
         for phrase in ('winner_coordinates', 'dmap', 'ar', 'som_weights_to_nodes'):
-            if utils.find(f'*{phrase}.pkl', self.models_dir_path): 
-                p = utils.find(f'*{phrase}.pkl', self.models_dir_path)
-                print(f'{utils.time_now()} - {phrase} is found @: \n{p[0]}')
+            if utils.find(f'*{prefix}{phrase}.pkl', destination): 
+                p = utils.find(f'*{prefix}{phrase}.pkl', destination)
+                print(f'{utils.time_now()} - {prefix}{phrase} is found @: \n{p[0]}')
                 exec(f'self.{phrase}_path = {p}[0]')
             else:
-                print(f'{utils.time_now()} - Some SOM products found missing in, generating all products now...')
+                print(f'{utils.time_now()} - {prompt} Some SOM products found missing in, generating all products now...')
                 som = utils.open_pickle(self.som_model_path)
-                standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
+                standardized_stacked_arr = utils.open_pickle(arr_path)
                 winner_coordinates = np.array([som.winner(x) for x in standardized_stacked_arr]) 
                 dmap = som.distance_map()
                 ar = som.activation_response(standardized_stacked_arr) 
@@ -231,16 +261,16 @@ class TopLevelModel:
                 som_weights_to_nodes = np.array(
                     [som_weights[c,r] for r in range(self.gridsize) for c in range(self.gridsize)]) #kmeans clustering
                 
-                self.winner_coordinates_path = utils.to_pickle('winner_coordinates', winner_coordinates, self.models_dir_path)
-                self.dmap_path = utils.to_pickle('dmap', dmap, self.models_dir_path)
-                self.ar_path = utils.to_pickle('ar', ar, self.models_dir_path)
-                self.som_weights_to_nodes_path = utils.to_pickle('som_weights_to_nodes', som_weights_to_nodes, self.models_dir_path)
+                self.winner_coordinates_path = utils.to_pickle(f'{prefix}winner_coordinates', winner_coordinates, destination)
+                self.dmap_path = utils.to_pickle(f'{prefix}dmap', dmap, destination)
+                self.ar_path = utils.to_pickle(f'{prefix}ar', ar, destination)
+                self.som_weights_to_nodes_path = utils.to_pickle(f'{prefix}som_weights_to_nodes', som_weights_to_nodes, destination)
 
                 break
 
         print('SOM products serialized.')
 
-    def generate_k(self):
+    def generate_k(self, alpha=None):
         """
         - detection of metrices to infer "k", i.e. optimal_k value
         - creation of metrices pickles 
@@ -251,17 +281,32 @@ class TopLevelModel:
         self.metrics_dir_path = metrics_dir
         # utils.update_cfgfile('Paths', 'metrics_dir', self.metrics_dir_path)
 
+        if alpha:
+            self.alpha_metrics_dir_path = str(Path(self.tl_model.metrics_dir_path) / f'alpha_{alpha}')
+            metric_destination = self.alpha_metrics_dir_path
+            os.makedirs(metric_destination, exist_ok=True)
+            model_destination = self.alpha_model_dir
+            prefix = f'alpha_{alpha}_'
+            prompt = f'< alpha-{alpha} >'
+        else:
+            metric_destination = self.metrics_dir_path
+            model_destination = self.models_dir_path
+            prefix = ''
+            prompt = ''
+
+        print(f'metric_destination: "{metric_destination}", model_destination: "{model_destination}", prefix: "{prefix}", prompt:"{prompt}"')
+        
         for phrase in ('sil_peaks', 'ch_max', 'dbi_min', 'reasonable_sil', 'ch_dbi_tally', 'n_expected_clusters', 'dbs_err_dict'):
-            if utils.find(f'*{phrase}*.pkl', self.metrics_dir_path): pass
+            if utils.find(f'*{prefix}{phrase}*.pkl', metric_destination): pass
             else:
-                print(f'{utils.time_now()} - Not all metrices have been found in {self.metrics_dir_path}, generating them now...')
+                print(f'{utils.time_now()} - {prompt} Not all metrices have been found in {metric_destination}, generating them now...')
                 # print all metrices if even 1 not found
                 som_weights_to_nodes = utils.open_pickle(self.som_weights_to_nodes_path)
 
-                ch_scores, dbi_scores = validation.print_elbow_CH_DBI_plot(self, som_weights_to_nodes)
-                yellowbrick_expected_k = validation.print_yellowbrickkelbow(self, som_weights_to_nodes)
-                silhouette_avgs, reasonable_silhoutte_scores_mt50 = validation.print_silhoutte_plots(self, som_weights_to_nodes)
-                dbstop10 = validation.print_dbs_plots(self, som_weights_to_nodes)
+                ch_scores, dbi_scores = validation.print_elbow_CH_DBI_plot(self, som_weights_to_nodes, metric_destination)
+                yellowbrick_expected_k = validation.print_yellowbrickkelbow(self, som_weights_to_nodes, metric_destination)
+                silhouette_avgs, reasonable_silhoutte_scores_mt50 = validation.print_silhoutte_plots(self, som_weights_to_nodes, metric_destination)
+                dbstop10 = validation.print_dbs_plots(self, som_weights_to_nodes, metric_destination)
                 
                 eps_ls, dbs_k_ls, dbs_noisepts_ls, dbs_labels = [], [], [], []
                 for i in dbstop10:
@@ -274,8 +319,9 @@ class TopLevelModel:
                     silhouette_avgs, ch_scores, dbi_scores, reasonable_silhoutte_scores_mt50, dbs_k_ls, dbs_noisepts_ls, yellowbrick_expected_k)
 
                 for cluster_num in n_expected_clusters:
+                    if alpha: save_dir = fr"{self.alpha_model_dir}/k-{cluster_num}"
+                    else: save_dir = fr"{self.models_dir_path}/k-{cluster_num}"
                     
-                    save_dir = fr"{self.models_dir_path}/k-{cluster_num}"
                     if cluster_num == ch_max: save_dir += '_CHhighestPeak'
                     if cluster_num == dbi_min: save_dir += '_lowestDBItrough'
                     if cluster_num in sil_peaks: save_dir += '_SilhouetteAVG-peak'
@@ -285,20 +331,21 @@ class TopLevelModel:
                     if cluster_num in dbs_err_dict: save_dir += f'_DBSCANclusterErrorValsExpected-{dbs_err_dict[cluster_num]}'
 
                     os.makedirs(save_dir, exist_ok=True)
+                    print(f'save_dir: {save_dir}')
 
-                self.ch_max_path = utils.to_pickle("ch_max", ch_max, self.metrics_dir_path)
-                self.dbi_min_path = utils.to_pickle("dbi_min", dbi_min, self.metrics_dir_path)
-                self.sil_peaks_path = utils.to_pickle("sil_peaks", sil_peaks, self.metrics_dir_path)
-                self.reasonable_sil_path = utils.to_pickle("reasonable_sil", reasonable_sil, self.metrics_dir_path)
-                self.ch_dbi_tally_path = utils.to_pickle("ch_dbi_tally", ch_dbi_tally, self.metrics_dir_path)
-                self.yellowbrick_expected_k_path = utils.to_pickle("yellowbrick_expected_k", yellowbrick_expected_k, self.metrics_dir_path)
-                self.dbs_err_dict_path = utils.to_pickle("dbs_err_dict", dbs_err_dict, self.metrics_dir_path)
-                self.n_expected_clusters_path = utils.to_pickle("n_expected_clusters", n_expected_clusters, self.metrics_dir_path)
+                self.ch_max_path = utils.to_pickle(f"{prefix}ch_max", ch_max, metric_destination)
+                self.dbi_min_path = utils.to_pickle(f"{prefix}dbi_min", dbi_min, metric_destination)
+                self.sil_peaks_path = utils.to_pickle(f"{prefix}sil_peaks", sil_peaks, metric_destination)
+                self.reasonable_sil_path = utils.to_pickle(f"{prefix}reasonable_sil", reasonable_sil, metric_destination)
+                self.ch_dbi_tally_path = utils.to_pickle(f"{prefix}ch_dbi_tally", ch_dbi_tally, metric_destination)
+                self.yellowbrick_expected_k_path = utils.to_pickle(f"{prefix}yellowbrick_expected_k", yellowbrick_expected_k, metric_destination)
+                self.dbs_err_dict_path = utils.to_pickle(f"{prefix}dbs_err_dict", dbs_err_dict, metric_destination)
+                self.n_expected_clusters_path = utils.to_pickle(f"{prefix}n_expected_clusters", n_expected_clusters, metric_destination)
 
                 break
 
-        print(f'{utils.time_now()} - Internal validation of clusters has been run, please view metrices folder @:\n{self.metrics_dir_path} to determine optimal cluster number.\n'\
-            f'\nYou can view the separate folders constructed for each discovered cluster combination. See @: \n{self.models_dir_path}.')
+        print(f'{utils.time_now()} - Internal validation of clusters has been run, please view metrices folder @:\n{metric_destination} to determine optimal cluster number.\n'\
+            f'\nYou can view the separate folders constructed for each discovered cluster combination. See @: \n{model_destination}.')
 
     def get_k(self, minimum_confidence=3, cluster_search_minimum=8):
         """
@@ -327,78 +374,115 @@ class TopLevelModel:
             return False
 
 
-    def train_kmeans(self):
+    def train_kmeans(self, alpha=None):
+        if alpha:
+            optimal_k = self.tl_model.optimal_k
+            print(f'>> self.alpha_model_dir: {self.alpha_model_dir}')
+            print(f'>> optimal_k: {optimal_k}')
+            found = [i for i in Path(self.alpha_model_dir).glob(f'k-{optimal_k}_*')]
+            if found: 
+                self.alpha_cluster_dir = found[0]
+            else: self.alpha_cluster_dir = str(Path(self.alpha_model_dir) / f"k-{optimal_k}_NOT-singled-out-as-potential-cluster-for-this-split")
+            os.makedirs(self.alpha_cluster_dir, exist_ok=True)
+            print(f'>> self.alpha_cluster_dir: {self.alpha_cluster_dir}')
+            destination = self.alpha_cluster_dir
+            prefix = f'alpha_{alpha}_'
+        else:
+            optimal_k = self.optimal_k
+            destination = self.cluster_dir
+            prefix = ''
+
+        print(f'optimal_k: "{optimal_k}", destination: "{destination}", prefix: "{prefix}"')
+            
         for phrase in ('kmeans_model', 'labels_ar', 'labels_to_coords', 'label_markers', 'target_ds_withClusterLabels', 'dates_to_ClusterLabels', 'RFprec_to_ClusterLabels_dataset'):
-            if utils.find(f'*{phrase}*.pkl', self.cluster_dir): 
+            if utils.find(f'*{phrase}*.pkl', destination): 
                 print(f'>>>>>>>>> "self.{phrase}_path" initialized.')
-                exec(f'self.{phrase}_path = utils.find(f\'*{phrase}*.pkl\', self.cluster_dir)[0]')
+                exec(f'self.{phrase}_path = utils.find(f\'*{phrase}*.pkl\', r"{destination}")[0]')
             else:
                 print(f'{utils.time_now()} - No KMeans model trained for {self.domain}, {self.period}, for {self.hyperparameters}, doing so now...')
                 som_weights_to_nodes = utils.open_pickle(self.som_weights_to_nodes_path)
                 samples, features = som_weights_to_nodes.shape
-                km = KMeans(n_clusters=self.optimal_k).fit(som_weights_to_nodes)
+                km = KMeans(n_clusters=optimal_k).fit(som_weights_to_nodes)
                 print(f"n{utils.time_now()} - K-means estimator fitted, sample size is {samples} and number of features is {features}.")
 
-                self.kmeans_model_path = utils.to_pickle(f'{self.RUN_datetime}_kmeans_model', km, self.cluster_dir)
-                self.serialize_kmeans_products(km)
-
+                self.kmeans_model_path = utils.to_pickle(f'{self.RUN_datetime}_{prefix}kmeans_model', km, destination)
+                self.serialize_kmeans_products(km, alpha)
                 break
             
 
-    def serialize_kmeans_products(self, km):
+    def serialize_kmeans_products(self, km, alpha):
+        if alpha:
+            arr_path = self.alpha_standardized_stacked_arr_path
+            uniq_markers = self.tl_model.uniq_markers
+            destination = self.alpha_cluster_dir
+        else:
+            arr_path = self.standardized_stacked_arr_path
+            uniq_markers = self.uniq_markers
+            destination = self.cluster_dir
 
-        standardized_stacked_arr = utils.open_pickle(self.standardized_stacked_arr_path)
+        print(f'arr_path: "{arr_path}", uniq_markers: "{uniq_markers}", destination: "{destination}"')
+
+        standardized_stacked_arr = utils.open_pickle(arr_path)
         target_ds = utils.open_pickle(self.target_ds_preprocessed_path)
-        rf_ds_preprocessed_path = utils.open_pickle(self.rf_ds_preprocessed_path)
+        rf_ds_preprocessed = utils.open_pickle(self.rf_ds_preprocessed_path)
 
         labels_ar = km.labels_
         labels_to_coords = np.zeros([len(labels_ar), 2])
         for i, var in enumerate(labels_ar): labels_to_coords[i] = i % self.gridsize, i // self.gridsize
 
         try:
-            label_markers = np.array([self.uniq_markers[var] for i, var in enumerate(labels_ar)])
+            label_markers = np.array([uniq_markers[var] for i, var in enumerate(labels_ar)])
         except IndexError: # more than 12 clusters
-            label_markers = np.array([(self.uniq_markers*3)[var] for i, var in enumerate(labels_ar)])
+            label_markers = np.array([(uniq_markers*3)[var] for i, var in enumerate(labels_ar)])
+            
         target_ds_withClusterLabels = target_ds.assign_coords(cluster=("time", km.predict(standardized_stacked_arr.astype(np.float))))
         dates_to_ClusterLabels = target_ds_withClusterLabels.cluster.reset_coords()
-        RFprec_to_ClusterLabels_dataset = xr.merge([rf_ds_preprocessed_path, dates_to_ClusterLabels])
+        RFprec_to_ClusterLabels_dataset = xr.merge([rf_ds_preprocessed, dates_to_ClusterLabels])
 
-        self.labels_ar_path = utils.to_pickle(f'{self.RUN_datetime}_labels_ar', labels_ar, self.cluster_dir)
-        self.labels_to_coords_path = utils.to_pickle(f'{self.RUN_datetime}_labels_to_coords', labels_to_coords, self.cluster_dir)
-        self.label_markers_path = utils.to_pickle(f'{self.RUN_datetime}_label_markers', label_markers, self.cluster_dir)
-        self.target_ds_withClusterLabels_path = utils.to_pickle(f'{self.RUN_datetime}_target_ds_withClusterLabels', target_ds_withClusterLabels, self.cluster_dir)
-        self.dates_to_ClusterLabels_path = utils.to_pickle(f'{self.RUN_datetime}_dates_to_ClusterLabels', dates_to_ClusterLabels, self.cluster_dir)
-        self.RFprec_to_ClusterLabels_dataset_path = utils.to_pickle(f'{self.RUN_datetime}_RFprec_to_ClusterLabels_dataset', RFprec_to_ClusterLabels_dataset, self.cluster_dir)
+        self.labels_ar_path = utils.to_pickle(f'{self.RUN_datetime}_labels_ar', labels_ar, destination)
+        self.labels_to_coords_path = utils.to_pickle(f'{self.RUN_datetime}_labels_to_coords', labels_to_coords, destination)
+        self.label_markers_path = utils.to_pickle(f'{self.RUN_datetime}_label_markers', label_markers, destination)
+        self.target_ds_withClusterLabels_path = utils.to_pickle(f'{self.RUN_datetime}_target_ds_withClusterLabels', target_ds_withClusterLabels, destination)
+        self.dates_to_ClusterLabels_path = utils.to_pickle(f'{self.RUN_datetime}_dates_to_ClusterLabels', dates_to_ClusterLabels, destination)
+        self.RFprec_to_ClusterLabels_dataset_path = utils.to_pickle(f'{self.RUN_datetime}_RFprec_to_ClusterLabels_dataset', RFprec_to_ClusterLabels_dataset, destination)
         
 
-    def print_outputs(self):
+    def print_outputs(self, alpha=None):
         """
         if xx model output not found in self.cluster_dir with model.RUN_time at start of name
         """
+        if alpha:
+            cluster_dir = self.alpha_cluster_dir
+            optimal_k = self.tl_model.optimal_k
+        else:
+            cluster_dir = self.cluster_dir
+            optimal_k = self.optimal_k
+
+        print(f'cluster_dir: "{cluster_dir}", optimal_k: "{optimal_k}"')
+        
         for phrase in ('_prelim_SOMscplot_', '_kmeans-scplot_', '_ARmonthfrac_', '_RFplot_', '_qp-at', '_rhum-at'):
-            if utils.find(f'*{phrase}*.png', self.cluster_dir): pass
+            if utils.find(f'*{phrase}*.png', cluster_dir): pass
             else:
-                print(f'{utils.time_now()} - Not all model outputs have been found in {self.cluster_dir}, generating them now...')
+                print(f'{utils.time_now()} - Not all model outputs have been found in {cluster_dir}, generating them now...')
                 # print all visuals if even 1 not found
                 
-                visualization.print_som_scatterplot_with_dmap(self);
-                visualization.print_kmeans_scatterplot(self)
-                self.grid_width = visualization.grid_width(self.optimal_k)
+                visualization.print_som_scatterplot_with_dmap(self, cluster_dir);
+                visualization.print_kmeans_scatterplot(self, cluster_dir, optimal_k)
+                self.grid_width = visualization.grid_width(optimal_k)
                 self.cbar_pos = np.max([(((clus)//self.grid_width)*self.grid_width)
-                                        for i,clus in enumerate(np.arange(self.optimal_k))
+                                        for i,clus in enumerate(np.arange(optimal_k))
                                         if i==(((clus)//self.grid_width)*self.grid_width)])
-                visualization.print_ar_plot(self)
+                visualization.print_ar_plot(self, cluster_dir, optimal_k)
                 #FIXME: print_ar_plot_granular(self)
-                visualization.print_ar_plot_granular(self)
-                visualization.print_rf_plots(self)
-                visualization.print_quiver_plots(self)
-                visualization.print_rhum_plots(self)
-
+                visualization.print_ar_plot_granular(self, cluster_dir, optimal_k)
+                visualization.print_rf_plots(self, cluster_dir, optimal_k)
+                visualization.print_quiver_plots(self, cluster_dir, optimal_k)
+                visualization.print_rhum_plots(self, cluster_dir, optimal_k)
                 break
                 
         print(
-            f'Outputs are available @: \n{self.cluster_dir}\n\nThese are clustering results for domain {self.domain} ({self.period}), '\
-            f'SOM-trained with hpparams {self.hyperparameters} \nand 2nd-level k-means clustered with k at {self.optimal_k}.')
+            f'Outputs are available @: \n{cluster_dir}\n\nThese are clustering results for domain {self.domain} ({self.period}), '\
+            f'SOM-trained with hpparams {self.hyperparameters} \nand 2nd-level k-means clustered with k at {optimal_k}.')
 
 
 class AlphaLevelModel(TopLevelModel):
@@ -414,13 +498,14 @@ class AlphaLevelModel(TopLevelModel):
         self.nyears = len(tl_model.years)
         self.ALPHAs = self.nyears // self.PSI
         self.runoff_years = self.nyears % self.PSI
-        self.alpha_general_dir = Path(tl_model.models_dir_path) / f'*{self.ALPHAs}fold_cv_eval'
-        os.makedirs(self.alpha_general_dir, exist_ok=True)
         self.tl_model = tl_model
+        self.alpha_general_dir = Path(self.tl_model.cluster_dir) / f'alpha_general'
+        os.makedirs(self.alpha_general_dir, exist_ok=True)
 
     def __str__(self):
         string =f'\n' \
-                f'==~ ===~ =========~~ ==========~~~ ==================~~~~@@~~~~================== ~~~========== ~~========= ~=== ~==\n' \
+                f'~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~@@~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\n' \
+                f'=~ ===~ ==========~~~ ==================~~~~@@~~~~================== ~~~========== ~=== ~=\n' \
                 f'AlphaLevelModel with ALPHAs:{self.ALPHAs}, PSI:{self.PSI}, PSI_overlap:{self.PSI_overlap}, ' \
                 f'"alpha_general_dir" @:\n{self.alpha_general_dir}\n' \
                 f' === Run-time started on {self.tl_model.RUN_datetime}'
@@ -434,7 +519,7 @@ class AlphaLevelModel(TopLevelModel):
             if flag:
                 return flag[0]
             else: return False
-        else:
+        else: # specific alpha level has been provided (as "section")
             flags = [i.parent.stem for i in Path(self.alpha_general_dir).glob(f'*/flag') if 'alpha' in str(i.parent.stem)]
             if flags:
                 for i in flags:
@@ -442,13 +527,8 @@ class AlphaLevelModel(TopLevelModel):
                         self.alpha +=1
                         return True
             self.alpha_prepared_dir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{section}')
+            print(f'No flag found for alpha ({section}), proceeding with evaluation procedure.\n\n\n**[ALPHA-{section}]**')
             return False
-            #found = [i for i in Path(self.models_dir_path).glob(f'*alpha_{section}/flag')]
-            #if found:
-                #self.alpha +=1
-                #return True
-            #else: 
-                #return False
 
     def prepare_nfold_datasets(self): # i.e. split into different train/ground-truth(test) dataset
         """
@@ -457,47 +537,125 @@ class AlphaLevelModel(TopLevelModel):
         target/RF: y_train, y_test
         """
         for alpha in range(1, self.ALPHAs+1):
-            newdir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{alpha}')
-            os.makedirs(newdir, exist_ok=True)
+            if alpha != self.ALPHAs:
+                gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI], separator='-')
+            else:
+                gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI+self.runoff_years], separator='-')
+            new_cluster_dir = str(Path(self.tl_model.cluster_dir) / f'alpha_{alpha}_GT-{gt_years}')
+            os.makedirs(new_cluster_dir, exist_ok=True)
+
+            new_prepared_data_dir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{alpha}')
+            os.makedirs(new_prepared_data_dir, exist_ok=True)
             
-            if utils.find(f'*alpha_{alpha}_preprocessed.pkl', newdir) and utils.find(f'*alpha_{alpha}_standardized_stacked_arr.pkl', newdir):
+            if utils.find(f'*alpha_{alpha}_preprocessed.pkl', new_prepared_data_dir) and utils.find(f'*alpha_{alpha}_standardized_stacked_arr.pkl', new_prepared_data_dir):
                 pass
             else:
-                if not utils.find(f'*target*alpha_{alpha}_preprocessed.pkl', newdir):
+                if not utils.find(f'*target*alpha_{alpha}_preprocessed.pkl', new_prepared_data_dir):
                     print(f"=> No input datasets pre-processed for alpha of {alpha}")
-                    prepare.cut_target_dataset(self, alpha, newdir)
+                    prepare.cut_target_dataset(self, alpha, new_prepared_data_dir)
 
-                if not utils.find(f'*rf*alpha_{alpha}_preprocessed.pkl', newdir):
+                if not utils.find(f'*rf*alpha_{alpha}_preprocessed.pkl', new_prepared_data_dir):
                     print(f"=> No rainfall datasets pre-processed for alpha of {alpha}")
-                    # prepare.cut_rf_dataset(self, alpha, newdir)
-
-                    prepare.get_test_ds(self, alpha, newdir, self.tl_model.rf_ds_preprocessed_path, 'rf_ds')
-                    prepare.get_train_ds(self, alpha, newdir, self.tl_model.rf_ds_preprocessed_path, 'rf_ds')
-                    print(f'Rainfall dataset split into train/test sets for alpha-{alpha}')
+                    prepare.cut_rf_dataset(self, alpha, new_prepared_data_dir)
                 
-        print(f'Preprocessed pickles for alpha split {alpha} can be found @:\n{newdir}')           
+                print(f'Preprocessed pickles for alpha split {alpha} can be found @:\n{new_prepared_data_dir}')           
 
     def prepare_alphafold_dataset(self, alpha):
+        print(f'Preparing dataset for alpha-{alpha}')
+        if alpha != self.ALPHAs:
+            gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI], separator='-')
+        else:
+            gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI+self.runoff_years], separator='-')
+
+        self.alpha_prepared_dir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{alpha}')
+        self.alpha_model_dir = str(Path(self.tl_model.cluster_dir) / f'alpha_{alpha}_GT-{gt_years}')
+        
         for pkl in utils.find(f'*alpha_{alpha}_preprocessed.pkl', self.alpha_prepared_dir):
-            if "target_ds" in pkl: self.target_ds_preprocessed_path = pkl
-            elif "rf_ds" in pkl: self.rf_ds_preprocessed_path = pkl
+            if "target_ds_train" in pkl: self.target_ds_preprocessed_path = pkl
+            elif "rf_ds_train" in pkl: self.rf_ds_preprocessed_path = pkl
+            elif "target_ds_test" in pkl: self.x_test_path = pkl
+            elif "rf_ds_test" in pkl: self.y_test_path = pkl
         
         LocalModelParams(self, utils.open_pickle(self.target_ds_preprocessed_path))
 
         if utils.find('*standardized_stacked_arr.pkl', self.alpha_prepared_dir):
-            self.standardized_stacked_arr_path = utils.find(f'*alpha_{alpha}_standardized_stacked_arr.pkl', self.alpha_prepared_dir)[0]
+            self.alpha_standardized_stacked_arr_path = utils.find(f'*standardized_stacked_arr.pkl', self.alpha_prepared_dir)[0]
         else:
-            self.standardized_stacked_arr_path = prepare.flatten_and_standardize_dataset(self, self.alpha_prepared_dir)
+            self.alpha_standardized_stacked_arr_path = prepare.flatten_and_standardize_dataset(self, self.alpha_prepared_dir)
         print(f'--> Months for this dataset are: {self.month_names}')
 
+        print(
+            f'paths created @ prepare_alphafold_dataset():\nself.alpha_prepared_dir: "{self.alpha_prepared_dir}", \nself.alpha_model_dir: "{self.alpha_model_dir}"'
+            f'\nself.target_ds_preprocessed_path: "{self.target_ds_preprocessed_path}", \nself.rf_ds_preprocessed_path: "{self.rf_ds_preprocessed_path}"' \
+            f'\nself.rf_ds_preprocessed_path: "{self.rf_ds_preprocessed_path}", \nself.x_test_path: "{self.x_test_path}", \nself.y_test_path: "{self.y_test_path}"' \
+            f'\nself.alpha_standardized_stacked_arr_path: "{self.alpha_standardized_stacked_arr_path}", \ngt_years: {gt_years}' \
+            )
 
-    def evaluation_procedure(self):
+    def evaluation_procedure(self, alpha):
         """
         AUC, Brier, probabilities, etc.
         """
-        pass
+        # flatten x_test
+        # feed into km to predict
+        # acquire dates and append to y_test
+        # loop through clusters
+        ## alpha_RFprec_to_ClusterLabels_dataset.sel(cluster=cluster_num)...
+        # y_train's proba of condition (e.g. at least 1mm) FOR each grid sq, over its dates for selected cluster
+        # similarly, y_test's proba of condition FOR each grid sq, over corresponding dates dedicated for selected cluster
+        # mean sq error of y_pred vs y_test for each grid = GRIDDED distribution of Brier scores for THIS cluster
+        ## avg out across all clusters = GRIDDED distribution of Brier scores for this alpha-fold
+
+        ## avg across the map = Brier avg +- CI for this cluster, ASPATIAL
+        ### avg across all clusters = Box-plot of Brier score avgs & mean Brier score avg for this alpha-fold +- CI
+
+        # across the grid, for each grid sq the proba of >1mm: assign to P/N according to thresholds 0.1, 0.2, ... 1.0
+        ## means for each threshold (proba of forecast to consider >1mm): there will be a CM formed, for each grid sq
+        ## map-wide distribution of ROC for THIS cluster => AUC
+        ### map-wide AUC + CI for all cluster in this alpha fold
+        # CM for each cluster
+        ## ROC + AUC for each cluster
+        ## ROC + AUC + CI for this alpha fold
+
+        self.alpha_cluster_scoring_dir = str(Path(self.alpha_cluster_dir) / f'Evaluation_scoring' / f'Rain_days_1mm_and_above')
+        os.makedirs(self.alpha_cluster_scoring_dir, exist_ok=True)
+
+        print(f'self.alpha_cluster_scoring_dir @: \n{self.alpha_cluster_scoring_dir}')
+        if utils.find('*Mean_brier_score*.png', self.alpha_cluster_scoring_dir) and utils.find('Brier_scores_for_cluster_predictions*.png', self.alpha_cluster_scoring_dir):
+            pass
+        else:
+            print('Conducting Brier score evaluation now!')
+            evaluation.aspatial_brier_scores(self, alpha, dest=self.alpha_cluster_scoring_dir)
+
+        if len(utils.find('*ROCs_for_alpha*.png', self.alpha_cluster_scoring_dir)) != alpha:
+            evaluation.roc_auc_curves(self, alpha, dest=self.alpha_cluster_scoring_dir)
+            print('Evaluation via ROC/AUC now!')
+        else:
+            pass
+
+        # FIXME: evaluation.geographic_brier_scoring()
+
+        print('Evaluation completed for raindays (1mm & above) predictions.')
 
     def compile_scores(self):
+        ## [for AUC] something along the lines of
+        # plt.figure()
+        # for all roc_auc_alpha in alphas:
+        # for all clus in clusters:
+        #     plt.plot([roc_auc[clus]['mean'] for i in roc_auc.keys()])
+        #     plt.ylim(0,1)
+        ## then overlay all lines from each cluster as a separate line!
+        ### what is the mean AUC for the whole model?
+
+        ## [for ROC]
+        # get the "_mean_tprs_alpha"-s, for all alphas
+        # plot as usual! with CI & all
+        # CI calculation is same, just using _tprs_alpha for all alphas instead.
+        ## remember the goal: a mean ROC to represent the model as a whole
+
+        ## [for Brier score - aspatial]
+        # get all the means for all alphas ("alpha_XX_bootstrapped_mean")
+        # boxplot each alpha ("_clus_brier_scores_flat") with supposed mean & CI added
+        ## and lastly, generate an avg Brier across all alphas - i.e. for this model as a whole
         pass
 
 

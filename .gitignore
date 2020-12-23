@@ -23,6 +23,8 @@ metrics/*
 models/*
 parts/
 sdist/
+test/*.png
+test/*.ipynb
 var/
 wheels/
 pip-wheel-metadata/

@@ -78,7 +78,7 @@ def get_meshgrid_xy(model):
     y = np.arange(model.gridsize)
     return [pt for pt in np.meshgrid(x,y)]
 
-def print_som_scatterplot_with_dmap(model):
+def print_som_scatterplot_with_dmap(model, dest):
     # n_datapoints, model.month_names, years, hyperparam_profile, 
     # mg1, mg2, dmap, winner_coordinates, target_ds, uniq_markers,
     # data_prof_save_dir, startlooptime, model.month_names_joined):
@@ -145,12 +145,12 @@ def print_som_scatterplot_with_dmap(model):
     print(f"Time taken is {utils.time_since(som_splot_withdmap_starttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_prelim_SOMscplot_{gridsize}x{gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_prelim_SOMscplot_{gridsize}x{gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
-def print_kmeans_scatterplot(model):
+def print_kmeans_scatterplot(model, dest, optimal_k):
             
     start_kmeanscatter = timer(); print(f"{utils.time_now()} - starting kmeans scatterplot now...")
     
@@ -179,8 +179,8 @@ def print_kmeans_scatterplot(model):
                              orientation='horizontal', pad=0.01);
 
     # scatterplot
-    num_col, sub_col = (int(model.optimal_k/2),2) if (model.optimal_k%2==0) & (model.optimal_k>9) else (
-        model.optimal_k, 1);
+    num_col, sub_col = (int(optimal_k/2),2) if (optimal_k%2==0) & (optimal_k>9) else (
+        optimal_k, 1);
     c2 = categorical_cmap(13, 2, cmap="tab20c");
     y = minmax_scale(labels_ar)
     x = labels_to_coords
@@ -201,24 +201,24 @@ def print_kmeans_scatterplot(model):
     print(f"Time taken is {utils.time_since(start_kmeanscatter)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_kmeans-scplot_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_kmeans-scplot_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
-def print_ar_plot(model):
+def print_ar_plot(model, dest, optimal_k):
     
     ARMonthFracstarttime = timer(); print(f"{utils.time_now()} - starting ar drawing now...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
 
-    fig, gs_ARMonthFrac = create_multisubplot_axes(model.optimal_k)
+    fig, gs_ARMonthFrac = create_multisubplot_axes(optimal_k)
     half_month_names = np.ravel([(f'{i} 1st-half', f'{i} 2nd-half') for i in model.month_names])
     c4 = categorical_cmap(8, 4, cmap="Dark2_r")
     color_indices = np.ravel([(2*(i-1), 2*(i-1)+1) for i in model.months])
 
-    for i in range(model.optimal_k):
+    for i in range(optimal_k):
         ax_ARMonthFrac = fig.add_subplot(gs_ARMonthFrac[i])
 
         cluster_months = target_ds_withClusterLabels.where(target_ds_withClusterLabels.cluster==i, drop=True)['time.month']
@@ -241,23 +241,23 @@ def print_ar_plot(model):
     print(f"Time taken is {utils.time_since(ARMonthFracstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_ARmonthfrac_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_ARmonthfrac_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
 #FIXME
-def print_ar_plot_granular(model):
+def print_ar_plot_granular(model, dest, optimal_k):
     pass
 
-def print_rf_plots(model):
+def print_rf_plots(model, dest, optimal_k):
 
-    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting rainfall now.\nTotal of {model.optimal_k} clusters, now printing cluster: ')
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting rainfall now.\nTotal of {optimal_k} clusters, now printing cluster: ')
 
     RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
     labels_ar = utils.open_pickle(model.labels_ar_path)
     
-    fig, gs_rf_plot = create_multisubplot_axes(model.optimal_k)
+    fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
     rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
     rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
     
@@ -289,7 +289,7 @@ def print_rf_plots(model):
         if clus == 0: # title
             ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
         else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
-
+        
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, data, np.linspace(0,40,9), cmap="terrain_r", extend='max')
         time.sleep(1); gc.collect()
 
@@ -306,13 +306,13 @@ def print_rf_plots(model):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
 
-def print_quiver_plots(model):
+def print_quiver_plots(model, dest, optimal_k):
         
     quiverstarttime = timer(); print(f"{utils.time_now()} - Drawing quiver sub-plots now...")
 
@@ -325,9 +325,9 @@ def print_quiver_plots(model):
 
     for idx, pressure in enumerate(model.uwnd_vwnd_pressure_lvls):
         print(f'Currently on {pressure}hpa...')
-        fig, gs_qp = create_multisubplot_axes(model.optimal_k)
+        fig, gs_qp = create_multisubplot_axes(optimal_k)
 
-        for cluster in range(model.optimal_k):
+        for cluster in range(optimal_k):
             print(f"{utils.time_now()} - Cluster {cluster}: ")
             
             uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
@@ -386,14 +386,14 @@ def print_quiver_plots(model):
         print(f"=> Quiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
         
     print(f"\n\nQuiver plotting took {utils.time_since(quiverstarttime)}.\n\n")
 
-def print_rhum_plots(model):
+def print_rhum_plots(model, dest, optimal_k):
     
     rhumstarttime = timer(); print(f"{utils.time_now()} - Finishing RHUM plots...")
 
@@ -401,9 +401,9 @@ def print_rhum_plots(model):
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
 
     for idx, pressure in enumerate(model.rhum_pressure_levels):
-        fig, gs_rhum = create_multisubplot_axes(model.optimal_k)
+        fig, gs_rhum = create_multisubplot_axes(optimal_k)
 
-        for cluster in range(model.optimal_k):
+        for cluster in range(optimal_k):
             rhum_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).rhum.mean("time")
 
@@ -452,7 +452,7 @@ def print_rhum_plots(model):
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{model.cluster_dir}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')

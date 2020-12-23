@@ -70,15 +70,23 @@ def get_raw_target_data(model):
     """
     lat_min, lat_max, lon_min, lon_max = model.domain_limits
     raw_rf_subdirs = [i for i in utils.raw_data_dir.glob('*GPM*')]
+    print(f'raw_rf_subdirs: {raw_rf_subdirs}')
 
     # return raw_rf_subdirs[0] # NOT implementing the below first (16Dec 340pm) as time-strapped.
     # # originally, the GPM folder is named "GPM_L3_-90_90_-180_180", now is it simply "GPM_L3"
     # # when the model is rerun on clean folder, the prepared dataset will reference such a folder
+    """
+    20 Dec: note to self, NE & inter_mon are both GPM_L3, SW_mon is GPM_L3_-90_90_-180_180
+    """
 
     if raw_rf_subdirs:
         for subdir in raw_rf_subdirs:
-            ltn, ltx, lnn, lnx = [int(num) for num in subdir.stem.split('_')[-4:]]
-            if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
+            try: 
+                stems = [int(num) for num in subdir.stem.split('_')[-4:]]
+                ltn, ltx, lnn, lnx = stems
+                if (ltn < lat_min) & (ltx > lat_max) & (lnn < lon_min) & (lnx > lon_max):
+                    return subdir
+            except FileNotFoundError:
                 return subdir
     else:
         raise(f'NO RAINFALL DATA FOUND @ {utils.raw_data_dir}')
@@ -216,46 +224,29 @@ def preprocess_time_series(model, dest, nfold_ALPHA=None, desired_res=0.75):
 
     return target_ds_preprocessed_path, rf_ds_preprocessed_path
 
-def get_test_ds(model, alpha, dest, dataset_path, ds_name):
-    print('Attempting to get test set...')
+def cut_dataset(model, alpha, dest, dataset_path, ds_name):
     dataset = utils.open_pickle(dataset_path)
     if alpha != model.ALPHAs:
         gt_years = model.tl_model.years[(alpha-1)*model.PSI : alpha*model.PSI]
-        gt_datasets = [utils.cut_year(dataset, gt_yr) for gt_yr in gt_years]
-        test = functools.reduce(lambda x,y: x.merge(y), gt_datasets)
+        train_years = np.delete(model.tl_model.years, np.arange((alpha-1) * model.PSI, alpha * model.PSI))
+        test = utils.cut_year(dataset, np.min(gt_years), np.max(gt_years))
+        train = utils.cut_year(dataset, np.min(train_years), np.max(train_years))
     else:
         gt_years = model.tl_model.years[(alpha-1)*model.PSI : alpha*model.PSI+model.runoff_years] 
-        gt_datasets = [utils.cut_year(dataset, gt_yr) for gt_yr in gt_years]
-        test = functools.reduce(lambda x,y: x.merge(y), gt_datasets)
+        train_years = np.delete(model.tl_model.years, np.arange((alpha-1)*model.PSI, alpha*model.PSI+model.runoff_years)) 
+        test = utils.cut_year(dataset, np.min(gt_years), np.max(gt_years))
+        train = utils.cut_year(dataset, np.min(train_years), np.max(train_years))
     time.sleep(1)
     gc.collect()
     utils.to_pickle(f'{ds_name}_test_alpha_{alpha}_preprocessed', test, dest)
-
-def get_train_ds(model, alpha, dest, dataset_path, ds_name):
-    print('Attempting to get train set...')
-    dataset = utils.open_pickle(dataset_path)
-    if alpha != model.ALPHAs:
-        train_years = np.delete(model.tl_model.years, np.arange((alpha-1) * model.PSI, alpha * model.PSI))
-        train_datasets = [utils.cut_year(dataset, tr_yr) for tr_yr in train_years]
-        train = functools.reduce(lambda x,y: x.merge(y), train_datasets)
-    else:
-        train_years = np.delete(model.tl_model.years, np.arange((alpha-1)*model.PSI, alpha*model.PSI+model.runoff_years)) 
-        train_datasets = [utils.cut_year(dataset, tr_yr) for tr_yr in train_years]
-        train = functools.reduce(lambda x,y: x.merge(y), train_datasets)
-    time.sleep(1)
-    gc.collect()
     utils.to_pickle(f'{ds_name}_train_alpha_{alpha}_preprocessed', train, dest)
 
 def cut_target_dataset(model, alpha, dest):
-    # cut_dataset(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
-    get_test_ds(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
-    get_train_ds(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
+    cut_dataset(model, alpha, dest, model.tl_model.target_ds_preprocessed_path, 'target_ds')
     print(f'Input dataset split into train/test sets for alpha-{alpha}')
 
 def cut_rf_dataset(model, alpha, dest):
-    # cut_dataset(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
-    get_test_ds(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
-    get_train_ds(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
+    cut_dataset(model, alpha, dest, model.tl_model.rf_ds_preprocessed_path, 'rf_ds')
     print(f'Rainfall dataset split into train/test sets for alpha-{alpha}')
 
 def flatten_and_standardize_dataset(model, dest):

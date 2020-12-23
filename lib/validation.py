@@ -17,7 +17,7 @@ import collections, time, logging
 logger = logging.getLogger()
 print = logger.info
 
-def print_elbow_CH_DBI_plot(model, som_weights_to_nodes, up_to=26):
+def print_elbow_CH_DBI_plot(model, som_weights_to_nodes, destination, up_to=26):
     ## Distortion "elbow method", CH-score & DBI indices plotted.
     distortions = [] 
     calinski_harabasz_scores = []
@@ -53,18 +53,18 @@ def print_elbow_CH_DBI_plot(model, som_weights_to_nodes, up_to=26):
     ax_iner.set_xticks(np.arange(2, up_to))
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fig.savefig(f"{model.metrics_dir_path}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_Distortionelbow-CHscore-DBIscore",bbox_inches='tight', pad_inches=1)
+    fig.savefig(f"{destination}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_Distortionelbow-CHscore-DBIscore",bbox_inches='tight', pad_inches=1)
     plt.close('all')
     return calinski_harabasz_scores, dbi_scores
 
-def print_yellowbrickkelbow(model, som_weights_to_nodes, up_to=26):
+def print_yellowbrickkelbow(model, som_weights_to_nodes, destination, up_to=26):
     kelbow_visualizer = KElbowVisualizer(KMeans(), k=(2,up_to))
     kelbow_visualizer.fit(som_weights_to_nodes)
-    kelbow_visualizer.show(f'{model.metrics_dir_path}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_yellowbrickelbowfor-k2.png')
+    kelbow_visualizer.show(f'{destination}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_yellowbrickelbowfor-k2.png')
     if kelbow_visualizer.elbow_value_ != None:
         return kelbow_visualizer.elbow_value_
 
-def print_silhoutte_plots(model, som_weights_to_nodes, up_to=26):
+def print_silhoutte_plots(model, som_weights_to_nodes, destination, up_to=26):
     range_n_clusters = np.arange(2,up_to)
 
     ## Silhoutte plots to determine manually optimal cluster num
@@ -195,12 +195,12 @@ def print_silhoutte_plots(model, som_weights_to_nodes, up_to=26):
     fig.suptitle(("Silhouette analysis for KMeans clustering on sample data."),
                  fontsize=14, fontweight='bold')
     
-    fig.savefig(f"{model.metrics_dir_path}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_Silhoutte-plots-2-to-{up_to-1}-clusters",bbox_inches='tight', pad_inches=1)
+    fig.savefig(f"{destination}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_Silhoutte-plots-2-to-{up_to-1}-clusters",bbox_inches='tight', pad_inches=1)
     plt.close('all')
     return silhouette_avgs, reasonable_percs
 
 
-def print_dbs_plots(model, som_weights_to_nodes, up_to=10):
+def print_dbs_plots(model, som_weights_to_nodes, destination, up_to=10):
     ## DBSCAN: clustering for not necessarily convex clusters
     cluster_queue = collections.deque([0,0,0], up_to)
 
@@ -263,7 +263,7 @@ def print_dbs_plots(model, som_weights_to_nodes, up_to=10):
 
     bigfig.suptitle(f'Max clusters: {a[0][1]}, distribution of top-10 cluster numbers via DBSCAN, descending.', fontsize=20)
     
-    bigfig.savefig(f"{model.metrics_dir_path}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_DBSCAN-varied-by-eps",bbox_inches='tight', pad_inches=1)
+    bigfig.savefig(f"{destination}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_DBSCAN-varied-by-eps",bbox_inches='tight', pad_inches=1)
     plt.close('all')
     return a[:up_to]
 

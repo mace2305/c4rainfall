@@ -33,8 +33,11 @@ def remove_expver(xr_ds):
         pass
     return xr_ds
 
-def cut_year(xr_ds, year):
-    return xr_ds.sel(time=slice(f'{year}-01-01', f'{year}-12-31'))
+##def cut_year(xr_ds, year):
+##    return xr_ds.sel(time=slice(f'{year}-01-01', f'{year}-12-31'))
+
+def cut_year(xr_ds, startyr, endyr):
+    return xr_ds.sel(time=slice(f'{startyr}', f'{endyr}'))
 
 def datetime_now():
     return time.strftime(f"%Y-%m-%d_%H-%M-%S", time.localtime())
@@ -111,7 +114,7 @@ def to_pickle(name, dataset, directory):
 
 def find(pattern, path):
     return [os.path.realpath(path)+'/'+f for f in os.listdir(path) if fnmatch.fnmatch(f, pattern)]
-    
+
 def get_cli_args(version):
     parser = argparse.ArgumentParser(fromfile_prefix_chars='@',
                                      description='Provides arguments & parameters to boot-up the clustering model.'
