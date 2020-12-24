@@ -25,6 +25,8 @@ parts/
 sdist/
 test/*.png
 test/*.ipynb
+test/*/
+test/*.out
 var/
 wheels/
 pip-wheel-metadata/

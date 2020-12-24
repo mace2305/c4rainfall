@@ -129,7 +129,7 @@ def generate_brier_scores(model, alpha, dest, clus, clus_brier_scores_dict):
         'randomError_cnt'})
 
     # loop clusters to compare with y_test GT rainfall
-    print(f'<alpha-{alpha}> {utils.time_now()} - Calculating Brier scores for cluster {clus}.')
+    print(f'<alpha-{alpha}> {utils.time_now()} - Calculating Brier scores for cluster {clus+1}.')
     clus_gt = y_test_with_cluster_memberships.where(y_test_with_cluster_memberships.cluster==clus, drop=True)
     clus_pred = y_train.where(y_train.cluster==clus, drop=True)
     clus_pred_proba_ls = np.mean([clus_pred.sel(time=t).precipitationCal.T.values > 1 for t in clus_pred.time.data], axis=0)
@@ -144,7 +144,7 @@ def aspatial_brier_scores(model, alpha, dest):
     """
 
     if utils.find(f'*clus_brier_scores_dict*', dest) and utils.find(f'*clus_pred_proba_ls*.pkl', dest):
-        clus_brier_scores_path = utils.find(f'*alpha_{alpha}_brier_scores*', dest)[0]
+        clus_brier_scores_path = utils.find(f'*clus_brier_scores_dict*', dest)[0]
     else:
         clus_brier_scores_dict = {}
         clus_pred_proba_ls = []
@@ -174,12 +174,13 @@ def aspatial_brier_scores(model, alpha, dest):
 
     fig = plt.figure(figsize=(10,5))
     height, bins, patches = plt.hist(sorted(clus_brier_scores_flat), alpha=0.5, facecolor='orange')
-    plt.title(f'Brier scores for cluster predictions in alpha-{alpha} vs. ground-truth rainfall (y_test), n_datapoints = {n_size}')
+    plt.suptitle(f'Brier scores for cluster predictions in alpha-{alpha} vs. ground-truth rainfall (y_test)', fontweight='bold')
+    plt.title(f'     sample size: {n_size}, ground-truth years: {model.gt_years}.', loc='left')
     plt.xlim(0,1)
     plt.ylabel('Count')
     plt.xlabel('Brier score')
-    plt.plot([bootstrapped_mean,bootstrapped_mean],(0,height.max()), color='b')
-    plt.annotate(f'Bootstrapped mean: {bootstrapped_mean:.3f}', xy=(bootstrapped_mean+0.03, 0.95*(height.max())))
+    plt.plot([bootstrapped_mean,bootstrapped_mean],(0,.98*height.max()), color='k')
+    plt.annotate(f'Bootstrapped mean: {bootstrapped_mean:.3f}', xy=(bootstrapped_mean+0.03, .97*(height.max())), fontsize='x-small')
     plt.grid(True, alpha=0.3, color='k')
     plt.savefig(f'{dest}/Brier_scores_for_cluster_predictions_in_this_alpha-{alpha}_vs_y_test.png')
     plt.close('all')
@@ -193,13 +194,13 @@ def aspatial_brier_scores(model, alpha, dest):
     print(prompt)
 
     fig = plt.figure(figsize=(10,5))
-    height, bins, patches = plt.hist(bootstrapped_means, color='g', alpha=0.4)
+    height, bins, patches = plt.hist(bootstrapped_means, color='g', alpha=0.7)
     plt.fill_betweenx([0,height.max()], lower, upper, color='r', alpha=0.1, linestyle='-', lw=1)
     plt.ylabel('Count')
     plt.xlabel('Brier Score Mean')
-    plt.annotate(prompt, xy=(lower-0.03, 1.05*height.max()))
-    plt.title(f'Brier score mean for alpha-{alpha}, bootstrapped for {n_iterations} iterations (95% confidence): {np.mean(bootstrapped_means):.3f}')
-    plt.savefig(f'{dest}/Mean_brier_score_({bootstrapped_mean:.3f})_with_CI,_bootstrapped_for_{n_iterations}_iterations.png')
+    plt.title(prompt, fontsize='small')
+    plt.suptitle(f'Brier score mean for alpha-{alpha}, bootstrapped for {n_iterations} iterations (95% confidence): {np.mean(bootstrapped_means):.3f}', fontweight='bold')
+    plt.savefig(f'{dest}/Mean_brier_score_({bootstrapped_mean:.3f})_with_CI_bootstrapped_for_{n_iterations}_iterations.png')
     plt.close('all')
     print(f'{utils.time_now()} - Bootstrapped mean plot for Brier scores -- printed!')
 
@@ -246,7 +247,7 @@ def roc_auc_curves(model, alpha, dest):
     base_fpr = np.linspace(0, 1, 101)
 
     for clus in np.unique(y_test_with_cluster_memberships.cluster):
-        print(f'<alpha-{alpha}> Plotting for cluster {clus}')
+        print(f'<alpha-{alpha}> Plotting for cluster {clus+1}')
         tpr[clus] = {}; fpr[clus] = {}; thresholds[clus] = {}; roc_auc[clus] = {}
         tprs = []
         plt.figure(figsize=(10, 8))
@@ -271,19 +272,21 @@ def roc_auc_curves(model, alpha, dest):
         tprs_upper = np.minimum(mean_tprs + std, 1)
         tprs_lower = mean_tprs - std
 
-        plt.plot(base_fpr, mean_tprs, 'g')
+        auc_val = roc_auc[clus]['mean']
+
+        plt.plot(base_fpr, mean_tprs, 'k')
         plt.fill_between(base_fpr, tprs_lower, tprs_upper, color='grey', alpha=0.3)
 
         plt.plot([0, 1], [0, 1],'r--')
         plt.xlim([-0.01, 1.01])
         plt.ylim([-0.01, 1.01])
-        plt.title(f'Receiver operating characteristic for alpha-{alpha}\'s cluster-{clus}')
+        plt.title(f'Receiver operating characteristic for alpha_{alpha}\'s cluster {clus+1}, AUC at {auc_val:.3f}')
         plt.ylabel('True Positive Rate')
         plt.xlabel('False Positive Rate')
         plt.axes().set_aspect('equal', 'datalim')
-        plt.savefig(f'{dest}/ROCs_for_alpha-{alpha}_cluster-{clus}.png')
+        plt.savefig(f'{dest}/AUC-{auc_val:.3f}_ROCs_for_alpha_{alpha}_cluster-{clus+1}.png')
         plt.close('all')
-        print(f'{utils.time_now()} - Receiver operating characteristic for alpha-{alpha}\'s cluster-{clus} -- printed')
+        print(f'{utils.time_now()} - Receiver operating characteristic for alpha-{alpha}\'s cluster-{clus+1} -- printed')
     
     tprs_alpha = np.array(tprs_alpha)
     std = tprs_alpha.std(axis=0)
@@ -292,6 +295,8 @@ def roc_auc_curves(model, alpha, dest):
     tprs_alpha_upper = np.minimum(mean_tprs_alpha + std, 1)
     tprs_alpha_lower = mean_tprs_alpha - std
 
+    auc_val = np.mean([roc_auc[clus]['mean'] for clus in range(len(roc_auc))])
+
     plt.figure(figsize=(13, 10))
     plt.plot(base_fpr, mean_tprs_alpha, 'b')
     plt.fill_between(base_fpr, tprs_alpha_lower, tprs_alpha_upper, color='grey', alpha=0.3)
@@ -299,14 +304,15 @@ def roc_auc_curves(model, alpha, dest):
     plt.plot([0, 1], [0, 1],'r--')
     plt.xlim([-0.01, 1.01])
     plt.ylim([-0.01, 1.01])
-    plt.title(f'Receiver operating characteristic for alpha-{alpha}\ - ALL clusters.')
+    plt.title(f'Receiver operating characteristic for alpha_{alpha} - ALL clusters., AUC at {auc_val:.3f}')
     plt.ylabel('True Positive Rate')
     plt.xlabel('False Positive Rate')
     plt.axes().set_aspect('equal', 'datalim')
-    plt.savefig(f'{dest}/ROCs_for_alpha-{alpha}_ALL_cluster.png')
+    plt.savefig(f'{dest}/AUC-{auc_val:.3f}_ROCs_for_alpha_{alpha}_ALL_cluster.png')
     plt.close('all')
     print(f'{utils.time_now()} - Receiver operating characteristic for alpha-{alpha}\ - ALL clusters. -- printed')
     
+    time.sleep(1); gc.collect()
     utils.to_pickle(f'alpha_{alpha}_roc_auc', roc_auc, dest)
     utils.to_pickle(f'alpha_{alpha}_tprs_alpha', tprs_alpha, dest)
     utils.to_pickle(f'alpha_{alpha}_mean_tprs_alpha', mean_tprs_alpha, dest)

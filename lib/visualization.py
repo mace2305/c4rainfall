@@ -362,7 +362,6 @@ def print_quiver_plots(model, dest, optimal_k):
                 ax_qp.set_title(f"Pressure: {pressure} hpa,\ncluster no.{cluster+1}", loc='left')
             else: ax_qp.set_title(f"cluster no.{cluster+1}", loc='left')
             
-            print(f"{utils.time_now()} Beginning contourf & quiver plots... ")
             time.sleep(1); gc.collect()
             wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids); 
             time.sleep(1); gc.collect()
@@ -372,7 +371,6 @@ def print_quiver_plots(model, dest, optimal_k):
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
                                       alpha=0.65)
             Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=2, scale=20)  
-            print('CP..! ')
             time.sleep(1); gc.collect()
 
             if cluster == model.cbar_pos: # cbar
@@ -477,7 +475,7 @@ def get_domain_geometry(model, dest):
     ax.set_yticks(np.linspace(lat_s_lim, -lat_s_lim, 5), crs=ccrs.PlateCarree())
     ax.set_xticks(np.linspace(lon_w_lim, lon_e_lim, 6), crs=ccrs.PlateCarree())
 
-    fn = f'{dest}/extent_{model.domain_limits_str}.png'
+    fn = f'{dest}/extent_{model.dir_str}.png'
     plt.savefig(fn)
     print(f'Extent saved @:\n{fn}')
     plt.close('all')

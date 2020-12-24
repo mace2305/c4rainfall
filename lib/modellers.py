@@ -563,12 +563,12 @@ class AlphaLevelModel(TopLevelModel):
     def prepare_alphafold_dataset(self, alpha):
         print(f'Preparing dataset for alpha-{alpha}')
         if alpha != self.ALPHAs:
-            gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI], separator='-')
+            self.gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI], separator='-')
         else:
-            gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI+self.runoff_years], separator='-')
+            self.gt_years = np.array2string(self.tl_model.years[(alpha-1)*self.PSI : alpha*self.PSI+self.runoff_years], separator='-')
 
         self.alpha_prepared_dir = str(Path(self.tl_model.prepared_data_dir) / f'alpha_{alpha}')
-        self.alpha_model_dir = str(Path(self.tl_model.cluster_dir) / f'alpha_{alpha}_GT-{gt_years}')
+        self.alpha_model_dir = str(Path(self.tl_model.cluster_dir) / f'alpha_{alpha}_GT-{self.gt_years}')
         
         for pkl in utils.find(f'*alpha_{alpha}_preprocessed.pkl', self.alpha_prepared_dir):
             if "target_ds_train" in pkl: self.target_ds_preprocessed_path = pkl
@@ -588,7 +588,7 @@ class AlphaLevelModel(TopLevelModel):
             f'paths created @ prepare_alphafold_dataset():\nself.alpha_prepared_dir: "{self.alpha_prepared_dir}", \nself.alpha_model_dir: "{self.alpha_model_dir}"'
             f'\nself.target_ds_preprocessed_path: "{self.target_ds_preprocessed_path}", \nself.rf_ds_preprocessed_path: "{self.rf_ds_preprocessed_path}"' \
             f'\nself.rf_ds_preprocessed_path: "{self.rf_ds_preprocessed_path}", \nself.x_test_path: "{self.x_test_path}", \nself.y_test_path: "{self.y_test_path}"' \
-            f'\nself.alpha_standardized_stacked_arr_path: "{self.alpha_standardized_stacked_arr_path}", \ngt_years: {gt_years}' \
+            f'\nself.alpha_standardized_stacked_arr_path: "{self.alpha_standardized_stacked_arr_path}", \nself.gt_years: {self.gt_years}' \
             )
 
     def evaluation_procedure(self, alpha):
@@ -626,7 +626,7 @@ class AlphaLevelModel(TopLevelModel):
             print('Conducting Brier score evaluation now!')
             evaluation.aspatial_brier_scores(self, alpha, dest=self.alpha_cluster_scoring_dir)
 
-        if len(utils.find('*ROCs_for_alpha*.png', self.alpha_cluster_scoring_dir)) != alpha:
+        if len(utils.find('*ROCs_for_alpha*.png', self.alpha_cluster_scoring_dir)) != (self.tl_model.optimal_k + 1):
             evaluation.roc_auc_curves(self, alpha, dest=self.alpha_cluster_scoring_dir)
             print('Evaluation via ROC/AUC now!')
         else:
