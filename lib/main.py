@@ -1,3 +1,4 @@
+#!/home/yixiang/anaconda3/envs/SOM/bin/python
 """
 main user interface for cli run
 """

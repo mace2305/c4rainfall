@@ -19,6 +19,12 @@ mpl_logger.setLevel(logging.WARNING)
 print = logger.info
 
 
+def geographic_AUC_scoring(model):
+    """
+    AUC scores mapped for each cluster of each alpha-fold
+    """
+    pass
+
 def geographic_brier_scoring(model):
     """
     Brier scoring mapped for each cluster of each alpha-fold
@@ -162,7 +168,6 @@ def aspatial_brier_scores(model, alpha, dest):
     n_iterations = 1000
     n_size = len(clus_brier_scores_flat)
     alph = 0.95
-    p = ((1.0-alph)/2.0) * 100
 
     # run bootstrap
     print(f'<alpha-{alpha}> Running bootstrap resampling on Brier scores to gather CI for alpha-{alpha} mean w/ sample size {n_size}, across all {model.tl_model.optimal_k} clusters.')

@@ -632,7 +632,7 @@ class AlphaLevelModel(TopLevelModel):
         else:
             pass
 
-        # FIXME: evaluation.geographic_brier_scoring()
+        
 
         print('Evaluation completed for raindays (1mm & above) predictions.')
 
@@ -657,6 +657,8 @@ class AlphaLevelModel(TopLevelModel):
         # boxplot each alpha ("_clus_brier_scores_flat") with supposed mean & CI added
         ## and lastly, generate an avg Brier across all alphas - i.e. for this model as a whole
         pass
+        # FIXME: evaluation.geographic_brier_scoring()
+        # FIXME: evaluation.geographic_AUC_scoring()
 
 
 
