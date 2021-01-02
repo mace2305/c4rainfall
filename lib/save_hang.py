@@ -3,6 +3,7 @@
 """
 Taken from https://askubuntu.com/questions/41778/computer-freezing-on-almost-full-ram-possibly-disk-cache-problem
 """
+import utils
 
 import psutil, time
 import tkinter as tk
@@ -51,8 +52,8 @@ def main():
                 continue
             elif (i > MAX_NUM_PROCESS_KILL) or \
                     (psutil.virtual_memory().percent < RAM_USAGE_THRESHOLD):
-                messagebox.showwarning('Killed proccess - save_hang',
-                                       ps_killed_notify)
+                #messagebox.showwarning('Killed proccess - save_hang',
+                                       #ps_killed_notify)
                 Popen("notify-send \"{}\"".format(ps_killed_notify), shell=True)
                 return
             else:
@@ -70,7 +71,7 @@ def main():
                 except Exception as err:
                     print("Error while killing {}: {}".format(ps.pid, err))
     else:
-        print("Memory usage = " + str(psutil.virtual_memory().percent))
+        print(f"{utils.time_now()} - Memory usage = " + str(psutil.virtual_memory().percent))
     root.update()
 
 

@@ -226,6 +226,22 @@ def preprocess_time_series(model, dest, nfold_ALPHA=None, desired_res=0.75):
 
 def cut_dataset(model, alpha, dest, dataset_path, ds_name):
     dataset = utils.open_pickle(dataset_path)
+    try: 
+        dataset = dataset.sel(
+            level=slice(np.min(model.tl_model.unique_pressure_lvls),np.max(model.tl_model.unique_pressure_lvls)), 
+            lat=slice(model.tl_model.LAT_N, model.tl_model.LAT_S), lon=slice(model.tl_model.LON_W, model.tl_model.LON_E),
+            time=slice('1999', '2019'))
+    except ValueError:
+        dataset = dataset.sel(
+            lat=slice(model.tl_model.LAT_S, model.tl_model.LAT_N), lon=slice(model.tl_model.LON_W, model.tl_model.LON_E),
+            time=slice('1999', '2019'))
+    if model.tl_model.period == "NE_mon":
+        dataset = dataset.sel(time=is_NE_mon(dataset['time.month']))
+    elif model.tl_model.period == "SW_mon":
+        dataset = dataset.sel(time=is_SW_mon(dataset['time.month']))
+    elif model.tl_model.period == "inter_mon":
+        dataset = dataset.sel(time=is_inter_mon(dataset['time.month']))
+
     if alpha != model.ALPHAs:
         gt_years = model.tl_model.years[(alpha-1)*model.PSI : alpha*model.PSI]
         train_years = np.delete(model.tl_model.years, np.arange((alpha-1) * model.PSI, alpha * model.PSI))
@@ -236,8 +252,8 @@ def cut_dataset(model, alpha, dest, dataset_path, ds_name):
         train_years = np.delete(model.tl_model.years, np.arange((alpha-1)*model.PSI, alpha*model.PSI+model.runoff_years)) 
         test = utils.cut_year(dataset, np.min(gt_years), np.max(gt_years))
         train = utils.cut_year(dataset, np.min(train_years), np.max(train_years))
-    time.sleep(1)
-    gc.collect()
+    time.sleep(1); gc.collect()
+
     utils.to_pickle(f'{ds_name}_test_alpha_{alpha}_preprocessed', test, dest)
     utils.to_pickle(f'{ds_name}_train_alpha_{alpha}_preprocessed', train, dest)
 

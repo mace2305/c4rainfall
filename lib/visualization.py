@@ -405,8 +405,6 @@ def print_rhum_plots(model, dest, optimal_k):
             rhum_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).rhum.mean("time")
 
-            print('Acquiring rhum cluster mean...')
-
             ax_rhum = fig.add_subplot(gs_rhum[cluster], projection=ccrs.PlateCarree())
             ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
             ax_rhum.yaxis.set_major_formatter(model.lat_formatter)
@@ -431,7 +429,6 @@ def print_rhum_plots(model, dest, optimal_k):
                 ax_rhum.set_title(f"Pressure: {pressure} hpa,\ncluster no.{cluster+1}", loc='left')
             else: ax_rhum.set_title(f"cluster no.{cluster+1}", loc='left')
 
-            print("Plotting contourf now.")
             normi = mpl.colors.Normalize(vmin=model.min_maxes['rhum_min'], vmax=model.min_maxes['rhum_max']);
             Rhum = ax_rhum.contourf(model.X, model.Y, rhum_gridded_centroids,
                                     np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),

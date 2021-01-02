@@ -179,7 +179,7 @@ class TopLevelModel:
         d_hp_dir_path = str(utils.models_dir / self.dir_hp_str)
         self.d_hp_dir_path = d_hp_dir_path
         os.makedirs(d_hp_dir_path, exist_ok=True)
-        if not utils.find('*extent*.png', self.d_hp_dir_path):
+        if not utils.find(f'*extent_{self.dir_str}.png', self.d_hp_dir_path):
             visualization.get_domain_geometry(self, self.d_hp_dir_path)
             
         models_dir_path = str(utils.models_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
@@ -595,70 +595,67 @@ class AlphaLevelModel(TopLevelModel):
         """
         AUC, Brier, probabilities, etc.
         """
-        # flatten x_test
-        # feed into km to predict
-        # acquire dates and append to y_test
-        # loop through clusters
-        ## alpha_RFprec_to_ClusterLabels_dataset.sel(cluster=cluster_num)...
-        # y_train's proba of condition (e.g. at least 1mm) FOR each grid sq, over its dates for selected cluster
-        # similarly, y_test's proba of condition FOR each grid sq, over corresponding dates dedicated for selected cluster
-        # mean sq error of y_pred vs y_test for each grid = GRIDDED distribution of Brier scores for THIS cluster
-        ## avg out across all clusters = GRIDDED distribution of Brier scores for this alpha-fold
-
-        ## avg across the map = Brier avg +- CI for this cluster, ASPATIAL
-        ### avg across all clusters = Box-plot of Brier score avgs & mean Brier score avg for this alpha-fold +- CI
-
-        # across the grid, for each grid sq the proba of >1mm: assign to P/N according to thresholds 0.1, 0.2, ... 1.0
-        ## means for each threshold (proba of forecast to consider >1mm): there will be a CM formed, for each grid sq
-        ## map-wide distribution of ROC for THIS cluster => AUC
-        ### map-wide AUC + CI for all cluster in this alpha fold
-        # CM for each cluster
-        ## ROC + AUC for each cluster
-        ## ROC + AUC + CI for this alpha fold
-
         self.alpha_cluster_scoring_dir = str(Path(self.alpha_cluster_dir) / f'Evaluation_scoring' / f'Rain_days_1mm_and_above')
         os.makedirs(self.alpha_cluster_scoring_dir, exist_ok=True)
 
-        print(f'self.alpha_cluster_scoring_dir @: \n{self.alpha_cluster_scoring_dir}')
-        if utils.find('*Mean_brier_score*.png', self.alpha_cluster_scoring_dir) and utils.find('Brier_scores_for_cluster_predictions*.png', self.alpha_cluster_scoring_dir):
+        print(f'<alpha-{alpha}> self.alpha_cluster_scoring_dir @: \n{self.alpha_cluster_scoring_dir}')
+        if utils.find(f'*Mean_brier_score*in_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir) and \
+            utils.find('*Brier_scores_for_cluster_predictions*alpha-{alpha}*.png', self.alpha_cluster_scoring_dir) and \
+            len(utils.find(f'*clus_gt_*', self.alpha_cluster_dir)) == self.tl_model.optimal_k and \
+            len(utils.find(f'*clus_pred_*', self.alpha_cluster_dir)) == self.tl_model.optimal_k : 
             pass
         else:
-            print('Conducting Brier score evaluation now!')
-            evaluation.aspatial_brier_scores(self, alpha, dest=self.alpha_cluster_scoring_dir)
+            print(f'Acquiring mean brier scores for each cluster in alpha {alpha}!')
+            evaluation.mean_brier_individual_alpha(self, alpha)
 
-        if len(utils.find('*ROCs_for_alpha*.png', self.alpha_cluster_scoring_dir)) != (self.tl_model.optimal_k + 1):
-            evaluation.roc_auc_curves(self, alpha, dest=self.alpha_cluster_scoring_dir)
-            print('Evaluation via ROC/AUC now!')
-        else:
+
+        if len(utils.find(f'*ROCs_for_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir)) == (self.tl_model.optimal_k + 1): 
             pass
+        else:
+            print('Plotting ROC curves for each alpha now!')
+            evaluation.ROC_AUC_individual_alpha(self, alpha)
+
+        if utils.find(f'*Gridded_brier_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
+            pass
+        else:
+            print('Plotting gridded brier scores across each alpha...')
+            evaluation.gridded_brier_individual_alpha(self, alpha)
 
         
+        if utils.find(f'*Gridded_AUC_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
+            pass
+        else:
+            print('Plotting gridded AUC across each alpha...')
+            evaluation.gridded_AUC_individual_alpha(self, alpha)
 
-        print('Evaluation completed for raindays (1mm & above) predictions.')
+        print(f'Evaluation completed for raindays (1mm & above) predictions for alpha-{alpha}.')
 
     def compile_scores(self):
-        ## [for AUC] something along the lines of
-        # plt.figure()
-        # for all roc_auc_alpha in alphas:
-        # for all clus in clusters:
-        #     plt.plot([roc_auc[clus]['mean'] for i in roc_auc.keys()])
-        #     plt.ylim(0,1)
-        ## then overlay all lines from each cluster as a separate line!
-        ### what is the mean AUC for the whole model?
+        if utils.find(f'*Brier_scores_weighted-avg_boxplot_with_bootstrapped_whole-model_mean*.png', self.alpha_general_dir): pass
+        else:
+            print('Plotting mean brier scores across all alphas...')
+            evaluation.mean_brier_scores_all_alphas(self)
 
-        ## [for ROC]
-        # get the "_mean_tprs_alpha"-s, for all alphas
-        # plot as usual! with CI & all
-        # CI calculation is same, just using _tprs_alpha for all alphas instead.
-        ## remember the goal: a mean ROC to represent the model as a whole
+        
+        if utils.find(f'*ROC_whole-model-mean_all-alphas_micro-avged*.png', self.alpha_general_dir): pass
+        else:
+            print('Plotting ROC across all alphas...')
+            evaluation.ROC_all_alphas(self)
 
-        ## [for Brier score - aspatial]
-        # get all the means for all alphas ("alpha_XX_bootstrapped_mean")
-        # boxplot each alpha ("_clus_brier_scores_flat") with supposed mean & CI added
-        ## and lastly, generate an avg Brier across all alphas - i.e. for this model as a whole
-        pass
-        # FIXME: evaluation.geographic_brier_scoring()
-        # FIXME: evaluation.geographic_AUC_scoring()
+        
+        if utils.find(f'*gridded_AUC_whole-model*.png', self.alpha_general_dir): pass
+        else:
+            print('Plotting gridded AUC across all alphas...')
+            evaluation.gridded_AUC_all_alphas(self)
+
+                
+        if utils.find(f'*gridded_brier_whole-model*.png', self.alpha_general_dir): pass
+        else:
+            print('Plotting gridded brier scores across all alphas...')
+            evaluation.gridded_brier_all_alphas(self)
+
+        
+        # with open(f'{self.alpha_general_dir}/flag', 'w+') as flag: pass # write flag to signal evaluation completed
 
 
 
