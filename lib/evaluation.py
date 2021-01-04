@@ -96,9 +96,9 @@ def prepare_x_test_arr(model):
 
 def generate_y_test_with_cluster_memberships(model, alpha, dest):
 
-    if utils.find('standardized_stacked_x_test_arr.pkl', model.alpha_prepared_dir) and \
+    if utils.find('*standardized_stacked_x_test_arr.pkl', model.alpha_prepared_dir) and \
         utils.find('*alpha_y_test*.pkl', model.alpha_prepared_dir):
-        standardized_stacked_x_test_arr_path = utils.find('standardized_stacked_x_test_arr.pkl', model.alpha_prepared_dir)[0]
+        standardized_stacked_x_test_arr_path = utils.find('*standardized_stacked_x_test_arr.pkl', model.alpha_prepared_dir)[0]
         alpha_y_test_path = utils.find('*alpha_y_test*', model.alpha_prepared_dir)[0]
     else:
         alpha_y_test_path, standardized_stacked_x_test_arr_path = prepare_x_test_arr(model)
@@ -138,17 +138,17 @@ def generate_clus_pred(model, dest, y_train_path):
         print(f'generating clus_pred_{i}')
         utils.to_pickle(f'clus_pred_{i}', y_train.where(y_train.cluster==i, drop=True), dest)
 
-def generate_brier_scores(model, alpha, dest, clus):
+def generate_brier_scores(model, alpha, clus):
     """
     Generating Brier score for ONE cluster, instead of one whole alpha-fold due to memory constraints.
     """
 
-    if utils.find('*y_test_with_cluster_memberships.pkl', dest):
+    if utils.find('*y_test_with_cluster_memberships.pkl', model.alpha_cluster_scoring_dir):
         pass
     else:
         print(f'y_test_with_cluster_memberships not found...')
-        generate_y_test_with_cluster_memberships(model, alpha, dest)
-    y_test_with_cluster_memberships_path = utils.find('y_test_with_cluster_memberships.pkl', dest)
+        generate_y_test_with_cluster_memberships(model, alpha, model.alpha_cluster_scoring_dir)
+    y_test_with_cluster_memberships_path = utils.find('*y_test_with_cluster_memberships.pkl', model.alpha_cluster_scoring_dir)
 
     # y_test_with_cluster_memberships = utils.open_pickle(y_test_with_cluster_memberships_path)
 
@@ -177,8 +177,8 @@ def generate_brier_scores(model, alpha, dest, clus):
     clus_brier_scores_dict[clus] = [brier_score_loss(
         np.ravel(clus_gt.isel(time=i).precipitationCal.T.values > 1), np.ravel(clus_pred_proba_ls)) for i,t in enumerate(clus_gt.time)]
         
-    utils.to_pickle(f'clus_pred_proba_ls_cluster_{clus}', clus_pred_proba_ls, dest)
-    utils.to_pickle(f'clus_brier_scores_dict_cluster_{clus}', clus_brier_scores_dict, dest)
+    utils.to_pickle(f'clus_pred_proba_ls_cluster_{clus}', clus_pred_proba_ls, model.alpha_cluster_scoring_dir)
+    utils.to_pickle(f'clus_brier_scores_dict_cluster_{clus}', clus_brier_scores_dict, model.alpha_cluster_scoring_dir)
 
     time.sleep(1); gc.collect()
 
@@ -202,7 +202,7 @@ def mean_brier_individual_alpha(model, alpha):
         for clus in range(model.tl_model.optimal_k):
             if f'clus_brier_scores_dict_cluster_{clus}' in found: continue
             print('Generating Brier scores now...')
-            generate_brier_scores(model, alpha, model.alpha_cluster_scoring_dir, clus)
+            generate_brier_scores(model, alpha, clus)
 
     # clus_brier_scores = utils.open_pickle(clus_brier_scores_path)
     clus_brier_scores = generate_clus_brier_scores_dict_full(model, model.alpha_cluster_scoring_dir)
@@ -262,12 +262,38 @@ def mean_brier_individual_alpha(model, alpha):
     utils.to_pickle(f'alpha_{alpha}_upper', upper, model.alpha_cluster_scoring_dir)
 
 
+def generate_brier_dict_all(model):
+    all_brier_scores_dict_clusters_pathls = np.array([*Path(model.tl_model.cluster_dir).glob('*/**/*scores_dict_cluster*')])
+    alpha_siz = len(all_brier_scores_dict_clusters_pathls)
+    all_brier_scores_dict_clusters_pathls = np.array_split(all_brier_scores_dict_clusters_pathls, model.ALPHAs)
+    print(all_brier_scores_dict_clusters_pathls)
+    brier_dict_all = {}
+    for alp in range(model.ALPHAs):
+        brier_dict_all[alp] = {}
+        for i, path in enumerate(all_brier_scores_dict_clusters_pathls[alp]):
+            brier_dict_all[alp][i] = utils.open_pickle(path)[i]
+    utils.to_pickle(f'brier_dict_all', brier_dict_all, model.alpha_general_dir)
+
+
 def mean_brier_scores_all_alphas(model):
-    brier_dict_all = [utils.open_pickle(i) for i in [*Path(model.tl_model.cluster_dir).glob('**/*/*/*/*brier_scores_dict.pkl')]]
+    if [*Path(model.tl_model.cluster_dir).glob('**/*/*/*/*brier_scores_dict.pkl')]: pass
+    else: generate_brier_dict_all(model)
+
+    # brier_dict_all = [utils.open_pickle(i) for i in [*Path(model.tl_model.cluster_dir).glob('**/*/*/*/*brier_scores_dict.pkl')]]
     # for i in Path(model.tl_model.cluster_dir).glob('**/*/*/*/*brier_scores_dict.pkl'): print(i)
-    clus_brier_scores_flat_ALL = [val for alpha_dic in brier_dict_all for clus in alpha_dic for val in alpha_dic[clus]]
-    clus_brier_scores_flat_for_each_alpha = [[val for clus in alpha_dic for val in alpha_dic[clus]] for alpha_dic in brier_dict_all]
-    clus_dist_for_each_alpha = [[len(alpha_dic[clus]) for clus in alpha_dic] for alpha_dic in brier_dict_all]
+    brier_dict_all = utils.open_pickle(f'{model.alpha_general_dir}/brier_dict_all.pkl')
+
+    # clus_brier_scores_flat_ALL = [val for alpha_dic in brier_dict_all for clus in alpha_dic for val in alpha_dic[clus]]
+    # n_size = len(clus_brier_scores_flat_ALL)
+    # print(f'n_size is {n_size}')
+    cluster_sizes = np.array([utils.open_pickle(i) for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*cluster_size*.pkl')]])
+    tots = cluster_sizes.sum()
+    print(f'n_size is {tots}')
+
+    clus_brier_scores_flat_for_each_alpha = [
+        [val for clus in brier_dict_all[alpha_dic] for val in brier_dict_all[alpha_dic][clus]
+        ] for alpha_dic in brier_dict_all]
+    clus_dist_for_each_alpha = [[len(brier_dict_all[alpha_dic][clus]) for clus in brier_dict_all[alpha_dic]] for alpha_dic in brier_dict_all]
     for clus_sizes_in_an_alpha in clus_dist_for_each_alpha:
         print(clus_sizes_in_an_alpha)
     print(len(brier_dict_all))
@@ -275,9 +301,6 @@ def mean_brier_scores_all_alphas(model):
     print(len(clus_brier_scores_flat_for_each_alpha))
     print(len(clus_dist_for_each_alpha[0]))
     print(len(clus_brier_scores_flat_for_each_alpha[0]))
-
-    n_size = len(clus_brier_scores_flat_ALL)
-    print(f'n_size is {n_size}')
 
     plt.figure(figsize=(15,8))
 
@@ -331,43 +354,67 @@ def mean_brier_scores_all_alphas(model):
 def brier_along_grid_axis(true, pred):
     return np.apply_along_axis(func1d=brier_score_loss, axis=0, arr=true, y_prob=pred)
 
-def generate_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_ls, dest):
+def generate_gridded_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_pkl, model):
     # y_test for this cluster
     y_test = utils.open_pickle(gt_dataset_path) 
     cluster_size = y_test.time.size
-    shape = (y_test.lat.size, y_test.lon.size)
-    grids = shape[0] * shape[1]
 
+    """ Too slow!
+    
     # list of dates with array in lat-lon dimensions representing condition of >1 mm rainfall or not (Bool)
     gt_results = [y_test.isel(time=t).precipitationCal.T.values > 1 for t in range(cluster_size)]
 
     # array in same lat-lon dims for predicted rainfall values if they meet condition (of >1mm)
-    pred_results = np.ravel(utils.open_pickle(clus_pred_proba_ls_cluster_ls[clus])) # y_train for cluster [i]
+    pred_results = np.ravel(utils.open_pickle(clus_pred_proba_ls_cluster_pkl)) # y_train for cluster [i]
 
     date_to_prediction = np.array([[np.ravel(date), pred_results] for date in gt_results])
 
     gridded_brier_for_clus_i = np.array([brier_along_grid_axis(np.atleast_1d(gt_grid), np.atleast_1d(pred_proba_grid)) 
-                                       for gt_row, pred_proba_row in date_to_prediction
-                                       for gt_grid, pred_proba_grid in zip(gt_row,pred_proba_row)]).reshape((cluster_size,-1))
+                                       for gt_row, pred_proba_row in date_to_prediction # for each day in testset
+                                       for gt_grid, pred_proba_grid in zip(gt_row,pred_proba_row)] # for each grid in that day
+                                       ).reshape((cluster_size,-1))            
+    """
 
-    utils.to_pickle(f'{utils.time_now()}_gridded_brier_cluster_{clus}', gridded_brier_for_clus_i, dest)
-    utils.to_pickle(f'cluster_{clus}_cluster_size', cluster_size, dest)
-    utils.to_pickle(f'cluster_{clus}_date_to_prediction', date_to_prediction, dest)
+    gt_results = np.array([y_test.isel(time=t).precipitationCal.T.values > 1 for t in range(cluster_size)])
+    pred_results = np.ravel(utils.open_pickle(clus_pred_proba_ls_cluster_pkl)) # y_train for cluster [i]
+    date_to_prediction = np.array([[np.ravel(date), pred_results] for date in gt_results]) # shape is (row, 2, grids)
+
+    """
+    Hypothesis: gridded brier with only 1 element sounds terrible. Instead, try to aggregate all dates
+    across all clusters, along with cluster sizes, then create empty grid,
+    dump all date_to_prediction(s) to this grid,
+    and use the bottom sped up way of calculating gridded brier!
+
+    Now: creating all date_to_prediction to try on .ipynb
+    """
+    # gridded_brier_for_clus_i = np.array(
+    #     [np.apply_along_axis(func1d=brier_score_loss, axis=0, arr=arr[:,None], y_prob=y_prob[:,None]) 
+    #     for arr, y_prob in zip(date_to_prediction.T[:,0], date_to_prediction.T[:,1])]
+    #     )
+
+    # utils.to_pickle(f'{utils.time_now()}_gridded_brier_cluster_{clus}', gridded_brier_for_clus_i, model.alpha_cluster_scoring_dir)
+    utils.to_pickle(f'cluster_{clus}_cluster_size', cluster_size, model.alpha_cluster_scoring_dir)
+    utils.to_pickle(f'cluster_{clus}_date_to_prediction', date_to_prediction, model.alpha_cluster_scoring_dir)
 
     
 def gridded_brier_individual_alpha(model, alpha):
     clus_pred_proba_ls_cluster_ls = utils.find('*clus_pred_proba_ls_cluster*', model.alpha_cluster_scoring_dir)
     clus_gt_ls = utils.find('*clus_gt*', model.alpha_cluster_dir)
     for clus,gt_dataset_path in enumerate(clus_gt_ls):
-        if not utils.find(f'*gridded_brier_cluster_{clus}.pkl', model.alpha_cluster_scoring_dir):
-            print(f'{utils.time_now()} - <alpha-{alpha}> No "gridded_brier_cluster_{clus}.pkl" found, generating now...')
-            generate_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_ls, model.alpha_cluster_scoring_dir)
+        # if not utils.find(f'*gridded_brier_cluster_{clus}.pkl', model.alpha_cluster_scoring_dir):
+        #     print(f'{utils.time_now()} - <alpha-{alpha}> No "gridded_brier_cluster_{clus}.pkl" found, generating now...')
+        #     generate_gridded_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_ls[clus], model)
+        if not utils.find(f'*cluster_{clus}_date_to_prediction.pkl', model.alpha_cluster_scoring_dir):
+            print(f'{utils.time_now()} - <alpha-{alpha}> No "cluster_{clus}_date_to_prediction" found, generating now...')
+            generate_gridded_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_ls[clus], model)
 
-    all_gridded_briers_paths = utils.find(f'*gridded_brier_cluster_*', model.alpha_cluster_scoring_dir)
-    all_gridded_briers_clus_size = utils.find(f'*_cluster_size*', model.alpha_cluster_scoring_dir)
-    all_gridded_briers = [np.array(utils.open_pickle(pkl)).reshape(utils.open_pickle(all_gridded_briers_clus_size[i]), -1) 
-    for i, pkl in enumerate(all_gridded_briers_paths)]
-    all_gridded_briers = np.concatenate(all_gridded_briers, axis=0)
+    # all_gridded_briers_paths = utils.find(f'*gridded_brier_cluster_*', model.alpha_cluster_scoring_dir)
+    # all_gridded_briers_clus_size = utils.find(f'*_cluster_size*', model.alpha_cluster_scoring_dir)
+    # all_gridded_briers = [np.array(
+    #     utils.open_pickle(pkl)).reshape(utils.open_pickle(all_gridded_briers_clus_size[i]), -1) 
+    #     for i, pkl in enumerate(all_gridded_briers_paths)
+    #     ]
+    # all_gridded_briers = np.concatenate(all_gridded_briers, axis=0)
 
     print(f'{utils.time_now()} - Ended loop, now beginning preprocessing...')
     ds = utils.open_pickle([*Path(model.alpha_cluster_dir).glob('*RFprec_to_ClusterLabels_dataset*')][0])
@@ -377,9 +424,32 @@ def gridded_brier_individual_alpha(model, alpha):
     lat_coords_min = min(lat_coords)-.5
     lon_coords_max = max(lon_coords)+.5
     lat_coords_max = max(lat_coords)+.5
-    shape = (ds.lat.size, ds.lon.size)
+    lat = ds.lat.size
+    lon = ds.lon.size
+    shape = (lat, lon)
 
-    mean_brier_for_this_alpha = (np.mean(all_gridded_briers, axis=0)).reshape(shape)
+    date_to_prediction_pathsls = utils.find(f'*_date_to_prediction.pkl', model.alpha_cluster_scoring_dir)
+    cluster_size_pathsls = utils.find(f'*cluster_size.pkl', model.alpha_cluster_scoring_dir)
+    tots = sum([utils.open_pickle(i) for i in cluster_size_pathsls])
+
+    desired_flat_size = shape[0]*shape[1]
+    empty_grid_truths = np.zeros((tots,desired_flat_size))
+    empty_grid_preds = np.zeros((tots,desired_flat_size))
+    CURSOR = 0
+    for pkl in date_to_prediction_pathsls:
+        for date, arr in enumerate(utils.open_pickle(pkl)):
+            empty_grid_truths[CURSOR] = arr[0]
+            empty_grid_preds[CURSOR] = arr[1]
+            CURSOR += 1
+
+    gridded_brier_for_all_clus = np.array(
+        [np.apply_along_axis(func1d=brier_score_loss, axis=0, arr=arr[:,None], y_prob=y_prob[:,None]) 
+        for arr, y_prob in zip(empty_grid_truths.T, empty_grid_preds.T)]
+        )
+
+    gridded_brier_for_all_clus = gridded_brier_for_all_clus.reshape(shape)
+
+    # mean_brier_for_this_alpha = (np.mean(all_gridded_briers, axis=0)).reshape(shape)
 
     print(f'{utils.time_now()} - Now plotting...')
     fig = plt.figure(figsize=(20,8))
@@ -388,10 +458,13 @@ def gridded_brier_individual_alpha(model, alpha):
     ax.yaxis.set_major_formatter(model.tl_model.lat_formatter)
     ax.add_feature(cf.COASTLINE, color='black', linewidth=1, linestyle='-') 
     ax.set_extent([lon_coords_min, lon_coords_max, lat_coords_min, lat_coords_max])
-    contf = ax.contourf(lon_coords, lat_coords, mean_brier_for_this_alpha, cmap="brg_r", alpha=0.8, 
+    # contf = ax.contourf(lon_coords, lat_coords, mean_brier_for_this_alpha, cmap="brg_r", alpha=0.8, 
+    #                     vmin=0, vmax=1.0, levels=np.linspace(0,1,41))
+    # m.set_array(mean_brier_for_this_alpha)
+    contf = ax.contourf(lon_coords, lat_coords, gridded_brier_for_all_clus, cmap="brg_r", alpha=0.8, 
                         vmin=0, vmax=1.0, levels=np.linspace(0,1,41))
     m = plt.cm.ScalarMappable(cmap="brg_r")
-    m.set_array(mean_brier_for_this_alpha)
+    m.set_array(gridded_brier_for_all_clus)
     m.set_clim(0.,1.)
     plt.title(f'Brier score average across all {model.tl_model.optimal_k} clusters in alpha-1', fontweight='bold', fontsize=17, y=1.02)
     ax.set_xticks([min(lon_coords), 
@@ -411,20 +484,28 @@ def gridded_brier_individual_alpha(model, alpha):
 
 
 def gridded_brier_all_alphas(model):
-    gridded_briers_all_alphas_paths = [i for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*gridded_brier_cluster*.pkl')]]
-    gridded_clusters_sizes_all_alphas_paths = [i for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*cluster_size*.pkl')]]
-    gridded_briers_all_alphas = [np.array(utils.open_pickle(pkl)).reshape(utils.open_pickle(gridded_clusters_sizes_all_alphas_paths[i]), -1) 
-    for i, pkl in enumerate(gridded_briers_all_alphas_paths)]
+    # gridded_briers_all_alphas_paths = [i for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*gridded_brier_cluster*.pkl')]]
+    # gridded_clusters_sizes_all_alphas_paths = [i for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*cluster_size*.pkl')]]
+    # gridded_briers_all_alphas = [np.array(utils.open_pickle(pkl)).reshape(utils.open_pickle(gridded_clusters_sizes_all_alphas_paths[i]), -1) 
+    #     for i, pkl in enumerate(gridded_briers_all_alphas_paths)]
+    # all_gridded_briers = np.concatenate(gridded_briers_all_alphas, axis=0)
 
-    all_gridded_briers = np.concatenate(gridded_briers_all_alphas, axis=0)
-    alpha_sizes = [len(arr) for arr in gridded_briers_all_alphas]
-    tots = sum([len(arr) for arr in gridded_briers_all_alphas])
-    alph_weights = [len(arr)/tots for arr in gridded_briers_all_alphas]
+    date_to_prediction_pathsls = [*Path(model.tl_model.cluster_dir).glob('**/**/*date_to_prediction*.pkl')]
+    cluster_sizes = np.array([utils.open_pickle(i) for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*cluster_size*.pkl')]])
+    tots = cluster_sizes.sum()
+    
+    # alpha_sizes = [len(arr) for arr in gridded_briers_all_alphas]
+    # tots = sum([len(arr) for arr in gridded_briers_all_alphas])
+    # alph_weights = [len(arr)/tots for arr in gridded_briers_all_alphas]
+
+    alpha_sizes = np.array([i.sum() for i in np.array_split(cluster_sizes, model.ALPHAs)])
+    alph_weights = alpha_sizes/tots
     weights = np.concatenate([np.full((alpha, ), alph_weights[i]) for i,alpha in enumerate(alpha_sizes)])
     print(weights.shape)
-
     
-    ds = utils.open_pickle([*Path(model.alpha_cluster_dir).glob('*RFprec_to_ClusterLabels_dataset*')][0])
+    # ds = utils.open_pickle([*Path(model.alpha_cluster_dir).glob('*RFprec_to_ClusterLabels_dataset*')][0])
+    print(f'{utils.time_now()} - Taking coordinate data from {model.RFprec_to_ClusterLabels_dataset_path}')
+    ds = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
     lon_coords = ds.lon.data
     lat_coords = ds.lat.data
     lon_coords_min = min(lon_coords)-.5
@@ -432,7 +513,24 @@ def gridded_brier_all_alphas(model):
     lon_coords_max = max(lon_coords)+.5
     lat_coords_max = max(lat_coords)+.5
     shape = (ds.lat.size, ds.lon.size)
-    mean_brier_for_this_alpha = (np.average(all_gridded_briers, axis=0, weights=weights)).reshape(shape)
+    # mean_brier_for_this_alpha = (np.average(all_gridded_briers, axis=0, weights=weights)).reshape(shape)
+
+    desired_flat_size = shape[0]*shape[1]
+    empty_grid_truths = np.zeros((tots,desired_flat_size))
+    empty_grid_preds = np.zeros((tots,desired_flat_size))
+    CURSOR = 0
+    for pkl in date_to_prediction_pathsls:
+        for date, arr in enumerate(utils.open_pickle(pkl)):
+            empty_grid_truths[CURSOR] = arr[0]
+            empty_grid_preds[CURSOR] = arr[1]
+            CURSOR += 1
+
+    gridded_brier_for_all_alphas = np.array(
+        [np.apply_along_axis(func1d=brier_score_loss, axis=0, arr=arr[:,None], y_prob=y_prob[:,None]) 
+        for arr, y_prob in zip(empty_grid_truths.T, empty_grid_preds.T)]
+        )
+
+    gridded_brier_for_all_alphas = gridded_brier_for_all_alphas.reshape(shape)
 
     print(f'{utils.time_now()} - Now plotting...')
     fig = plt.figure(figsize=(25,9))
@@ -441,19 +539,29 @@ def gridded_brier_all_alphas(model):
     ax.yaxis.set_major_formatter(model.tl_model.lat_formatter)
     ax.add_feature(cf.COASTLINE, color='black', linewidth=1, linestyle='-') 
     ax.set_extent([lon_coords_min, lon_coords_max, lat_coords_min, lat_coords_max])
-    contf = ax.contourf(lon_coords, lat_coords, mean_brier_for_this_alpha, cmap="brg_r", alpha=0.8, 
+    # contf = ax.contourf(lon_coords, lat_coords, mean_brier_for_this_alpha, cmap="brg_r", alpha=0.8, 
+    #                     vmin=0, vmax=1.0, levels=np.linspace(0,1,21))
+    # conts = ax.contour(contf, 'k--', alpha=0.5, lw=.1)
+
+    # ax.clabel(conts, conts.levels, colors='k', inline=False, fontsize=7)
+
+    # m = plt.cm.ScalarMappable(cmap="brg_r")
+    # m.set_array(mean_brier_for_this_alpha)
+    # m.set_clim(0.,1.)
+    contf = ax.contourf(lon_coords, lat_coords, gridded_brier_for_all_alphas, cmap="brg_r", alpha=0.8, 
                         vmin=0, vmax=1.0, levels=np.linspace(0,1,21))
     conts = ax.contour(contf, 'k--', alpha=0.5, lw=.1)
 
     ax.clabel(conts, conts.levels, colors='k', inline=False, fontsize=7)
 
     m = plt.cm.ScalarMappable(cmap="brg_r")
-    m.set_array(mean_brier_for_this_alpha)
+    m.set_array(gridded_brier_for_all_alphas)
     m.set_clim(0.,1.)
-    plt.suptitle(f'Brier score averages across all dates in all clusters,\nacross all 5 cross-val test sets (n={weights.shape[0]}).', 
-                fontweight='bold', fontsize=17, x=.635, y=1.02)
-    plt.title('Scores approaching 0 indicate better calibrated predictive models. \nScore of 0.25 is achievable by forecasting 50% occurances.',
-            y=1.03)
+    plt.suptitle(f'Brier score averages across all 5 cross-val test sets (n={weights.shape[0]}).', 
+        fontweight='bold', fontsize=17, x=.67, y=.99)
+    plt.title('Scores have been averaged across all dates of each test set. \n' \
+        'Scores approaching 0 indicate better calibrated predictive models, \n' \
+        'while 0.25 may represent forecasts of 50%, regardless of outcome.', y=1.01)
     ax.set_xticks([min(lon_coords), 
                 min(lon_coords)+(max(lon_coords)-min(lon_coords))/4, 
                 min(lon_coords)+(max(lon_coords)-min(lon_coords))/2,
@@ -480,12 +588,12 @@ def ROC_AUC_individual_alpha(model, alpha):
     """
     print('Preparing to plot ROCs & uncover AUCs')
 
-    if utils.find('y_test_with_cluster_memberships.pkl', model.alpha_cluster_scoring_dir):
+    if utils.find('*y_test_with_cluster_memberships.pkl', model.alpha_cluster_scoring_dir):
         pass
     else:
         generate_y_test_with_cluster_memberships(model, alpha, model.alpha_cluster_scoring_dir)
 
-    y_test_with_cluster_memberships_path = utils.find('y_test_with_cluster_memberships.pkl', model.alpha_cluster_scoring_dir)
+    y_test_with_cluster_memberships_path = utils.find('*y_test_with_cluster_memberships.pkl', model.alpha_cluster_scoring_dir)
     if utils.find(f'*clus_gt_*', model.alpha_cluster_dir): pass
     else:
         generate_y_test_with_cluster_memberships_for_specific_clusters(model, model.alpha_cluster_dir, y_test_with_cluster_memberships_path)
@@ -498,7 +606,7 @@ def ROC_AUC_individual_alpha(model, alpha):
         for clus in range(model.tl_model.optimal_k):
             if f'clus_pred_proba_ls_cluster_{clus}' in found: continue
             print('Generating Brier scores now...')
-            generate_brier_scores(model, alpha, model.alpha_cluster_scoring_dir, clus)
+            generate_brier_scores(model, alpha, clus)
 
     # clus predicted avg RF across the grid
     clus_pred_proba_ls_paths = utils.find('*clus_pred_proba_ls_cluster*', model.alpha_cluster_scoring_dir)
@@ -613,7 +721,7 @@ def ROC_all_alphas(model):
     tprs_alpha_upper = np.minimum(mean_tprs_alpha + std, 1)
     tprs_alpha_lower = mean_tprs_alpha - std
 
-    plt.plot(base_fpr, mean_tprs_alpha, 'k--.', lw=5, markersize=7, label='ROC weighted-averaged across all CV splits, AUC at {auc_:.3f}')
+    plt.plot(base_fpr, mean_tprs_alpha, 'k--.', lw=5, markersize=7, label=f'ROC weighted-averaged across all CV splits, AUC at {auc_:.3f}')
 
     plt.fill_between(base_fpr, tprs_alpha_lower, tprs_alpha_upper, color='lightblue', alpha=0.3, hatch='x')
     plt.suptitle(f'Receiver operating characteristic all alphas ' \
@@ -707,15 +815,15 @@ def gridded_AUC_all_alphas(model):
 
     # i.e. all pred_proba for all clusters in ALL alphas
     clus_pred_proba_ls_cluster_paths = [utils.find('*clus_pred_proba_ls_cluster*', i) for i in alpha_cluster_scoring_dirs_ls]
-    alpha_cluster_scoring_dirs_ls_extended = [alpha_cluster_scoring_dirs_ls[i] \
-        for i,path in enumerate(clus_pred_proba_ls_cluster_paths) \
-        for num in range(len(path))]
+    # alpha_cluster_scoring_dirs_ls_extended = [alpha_cluster_scoring_dirs_ls[i] \
+    #     for i,path in enumerate(clus_pred_proba_ls_cluster_paths) \
+    #     for num in range(len(path))]
 
     # same for gt, all gt across all ALPHAs, cluster-membership irrelevant
     clus_gt_ls_paths = [utils.find('*clus_gt_*', i) for i in alpha_cluster_dirs_ls]
-    alpha_cluster_dirs_ls_extended = [alpha_cluster_dirs_ls[i] \
-        for i,path in enumerate(clus_gt_ls_paths) \
-        for num in range(len(path))]
+    # alpha_cluster_dirs_ls_extended = [alpha_cluster_dirs_ls[i] \
+    #     for i,path in enumerate(clus_gt_ls_paths) \
+    #     for num in range(len(path))]
 
     clus_pred_proba_ls_cluster_paths = list(itertools.chain.from_iterable(clus_pred_proba_ls_cluster_paths))
     clus_gt_ls_paths = list(itertools.chain.from_iterable(clus_gt_ls_paths))
@@ -723,35 +831,50 @@ def gridded_AUC_all_alphas(model):
     alpha_gt_paths = [*Path(model.tl_model.cluster_dir).glob('**/alpha_*_GT*/')]
     number_cv_splits = len(alpha_gt_paths)
 
-    CV_testset_lengths = get_CV_testsets_lengths(
-        [*Path(model.tl_model.cluster_dir).glob('**/alpha_*_GT*/**/Rain_days_1mm_and_above/*clus_brier_scores_flat*')])
+    # CV_testset_lengths = get_CV_testsets_lengths(
+    #     [*Path(model.tl_model.cluster_dir).glob('**/alpha_*_GT*/**/Rain_days_1mm_and_above/*clus_brier_scores_flat*')])
 
     for i, gt_path in enumerate(clus_gt_ls_paths):
-        print(f'Going through GT-{i}')
-        if utils.find(f'{i}_date_to_prediction.pkl', model.alpha_general_dir): 
+        if utils.find(f'*{i}_date_to_prediction.pkl', model.alpha_general_dir): 
             print(f'"{i}_date_to_prediction.pkl" already exists.'); continue
+        print(f'Creating "{i}_date_to_prediction.pkl"....')
         y_test = utils.open_pickle(gt_path)
         cluster_size = y_test.time.size
         shape = (y_test.lat.size, y_test.lon.size)
-        grids = shape[0] * shape[1]
+        # grids = shape[0] * shape[1]
     
         gt_results = [y_test.isel(time=t).precipitationCal.T.values > 1 for t in range(cluster_size)]
         pred_results = np.ravel (utils.open_pickle(clus_pred_proba_ls_cluster_paths[i])) # y_train for cluster [i]
         date_to_prediction = np.array([[np.ravel(date), pred_results] for date in gt_results]) # [gt, pred] for THIS cluster
-        alpha_cluster_scoring_dir = alpha_cluster_scoring_dirs_ls_extended[i]
+        # alpha_cluster_scoring_dir = alpha_cluster_scoring_dirs_ls_extended[i]
         utils.to_pickle(f'{i}_date_to_prediction', date_to_prediction, model.alpha_general_dir)
-    
-    date_to_prediction_path_ls = utils.find('*date_to_prediction.pkl', model.alpha_general_dir)
-    date_to_prediction = np.concatenate([utils.open_pickle(i) for i in date_to_prediction_path_ls])
-    # date_to_prediction.shape
+
+    """
+    Below code deemed too memory-hungry. No need to pickle then, as it creates a copy instead of using numpy's view mode
+    """
+    # date_to_prediction_path_ls = utils.find('*date_to_prediction.pkl', model.alpha_general_dir)
+    # date_to_prediction = np.concatenate([utils.open_pickle(i) for i in date_to_prediction_path_ls])
+
+    date_to_prediction_path_ls = [i for i in utils.find(rf'*date_to_prediction.pkl', model.alpha_general_dir) if 'ALL_date_to_prediction.pkl' not in i]
+    date_to_prediction_shapes = np.array([utils.open_pickle(pkl).shape for pkl in date_to_prediction_path_ls])
+    arr_sizes = date_to_prediction_shapes[:,0]
+    date_to_prediction = np.zeros((arr_sizes.sum(), 2, date_to_prediction_shapes[0][-1]))
+    cur_empty_grid_index = 0
+
+    for path_index, path in enumerate(date_to_prediction_path_ls):
+        print(f'{utils.time_now()} - Now on path_index {path_index}')
+        new_arr = utils.open_pickle(path)
+        for i,arr in enumerate(new_arr):
+            date_to_prediction[cur_empty_grid_index] = arr
+            cur_empty_grid_index += 1
 
     tpr = {} # holds TPR in dict form for use in intermediate steps
     tprs_alpha = [] # holds interpolated TPRs for all clusters in this alpha, used to calc mean TPR for this alpha at the end
     fpr = {}; base_fpr = np.linspace(0, 1, 101); roc_auc = {}
-    print(f'Generating confusion matrices for {date_to_prediction.shape[-1]} grids...')
 
+    print(f'{utils.time_now()} - Generating confusion matrices for {date_to_prediction.shape[-1]} grids...')
     for grid in range(date_to_prediction.shape[-1]):
-        fpr[grid], tpr[grid], thresh = roc_curve( # for each sample of a grid
+        fpr[grid], tpr[grid], _ = roc_curve( # for each sample of a grid
             date_to_prediction[:,0,grid], date_to_prediction[:,1,grid], pos_label=True, drop_intermediate=False
         ) 
         roc_auc[grid] = auc(fpr[grid], tpr[grid])
@@ -759,7 +882,9 @@ def gridded_AUC_all_alphas(model):
         tpr_[0] = 0.0
         tprs_alpha.append(tpr_)
         
-    ds = utils.open_pickle([*Path(model.tl_model.cluster_dir).glob('*RFprec_to_ClusterLabels_dataset*')][0])
+    # ds = utils.open_pickle([*Path(model.tl_model.cluster_dir).glob('*RFprec_to_ClusterLabels_dataset*')][0])
+    print(f'{utils.time_now()} - Taking coordinate data from {model.RFprec_to_ClusterLabels_dataset_path}')
+    ds = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
     lon_coords = ds.lon.data
     lat_coords = ds.lat.data
     lon_coords_min = min(lon_coords)-.5
@@ -776,16 +901,15 @@ def gridded_AUC_all_alphas(model):
     ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
     ax.xaxis.set_major_formatter(model.tl_model.lon_formatter)
     ax.yaxis.set_major_formatter(model.tl_model.lat_formatter)
-    ax.add_feature(cf.COASTLINE, color='black', linewidth=1, linestyle='-') 
+    ax.add_feature(cf.COASTLINE, color='black', linewidth=1.4, linestyle='-') 
     ax.set_extent([lon_coords_min, lon_coords_max, lat_coords_min, lat_coords_max])
-    levels=np.linspace(0,1,21)
+    levels=np.linspace(0,1,11)
     contf = ax.contourf(lon_coords, lat_coords, aucs, cmap="jet", alpha=1, 
                         vmin=0, vmax=1.0, levels=levels)
 
-    ax.contour(contf, 'k--', alpha=0.5, lw=.1)
-    conts = ax.contour(contf, 'k--', alpha=0.5, lw=.1)
-
+    conts = ax.contour(contf, 'k:', alpha=0.5, lw=.05)
     ax.clabel(conts, conts.levels, colors='k', inline=False, fontsize=7)
+    
     plt.title(f'AUC averages for all dates in all clusters,\nacross all {number_cv_splits} cross-val test sets.', 
                 fontweight='bold', fontsize=20, y=1.01)
     ax.set_xticks([min(lon_coords), 

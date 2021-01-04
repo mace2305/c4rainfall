@@ -155,7 +155,9 @@ class TopLevelModel:
         1. prepare.preprocess_time_series
         2. prepare.flatten_and_standardize_dataset`
         """
-        if utils.find('*preprocessed.pkl', self.prepared_data_dir) and utils.find('*standardized_stacked_arr.pkl', self.prepared_data_dir):
+        if utils.find('*target_ds_preprocessed.pkl', self.prepared_data_dir) and \
+            utils.find('*rf_ds_preprocessed.pkl', self.prepared_data_dir) and \
+            utils.find('*standardized_stacked_arr.pkl', self.prepared_data_dir):
             print('Pickles (preprocessed) found.')
             for pkl in utils.find('*preprocessed.pkl', self.prepared_data_dir):
                 if "target_ds" in pkl: self.target_ds_preprocessed_path = pkl
@@ -605,27 +607,27 @@ class AlphaLevelModel(TopLevelModel):
             len(utils.find(f'*clus_pred_*', self.alpha_cluster_dir)) == self.tl_model.optimal_k : 
             pass
         else:
-            print(f'Acquiring mean brier scores for each cluster in alpha {alpha}!')
+            print(f'Acquiring mean brier scores for each cluster in alpha-{alpha}!')
             evaluation.mean_brier_individual_alpha(self, alpha)
 
 
         if len(utils.find(f'*ROCs_for_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir)) == (self.tl_model.optimal_k + 1): 
             pass
         else:
-            print('Plotting ROC curves for each alpha now!')
+            print('Plotting ROC curves for individual alpha-{alpha} now!')
             evaluation.ROC_AUC_individual_alpha(self, alpha)
 
         if utils.find(f'*Gridded_brier_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
             pass
         else:
-            print('Plotting gridded brier scores across each alpha...')
+            print(f'{utils.time_now()} - Plotting gridded brier scores for individual alpha-{alpha}...')
             evaluation.gridded_brier_individual_alpha(self, alpha)
 
         
         if utils.find(f'*Gridded_AUC_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
             pass
         else:
-            print('Plotting gridded AUC across each alpha...')
+            print(f'{utils.time_now()} - Plotting gridded AUC for individual alpha-{alpha}...')
             evaluation.gridded_AUC_individual_alpha(self, alpha)
 
         print(f'Evaluation completed for raindays (1mm & above) predictions for alpha-{alpha}.')
