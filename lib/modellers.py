@@ -657,7 +657,7 @@ class AlphaLevelModel(TopLevelModel):
             evaluation.gridded_brier_all_alphas(self)
 
         
-        # with open(f'{self.alpha_general_dir}/flag', 'w+') as flag: pass # write flag to signal evaluation completed
+        with open(f'{self.alpha_general_dir}/flag', 'w+') as flag: pass # write flag to signal evaluation completed
 
 
 

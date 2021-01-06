@@ -404,7 +404,8 @@ def gridded_brier_individual_alpha(model, alpha):
         # if not utils.find(f'*gridded_brier_cluster_{clus}.pkl', model.alpha_cluster_scoring_dir):
         #     print(f'{utils.time_now()} - <alpha-{alpha}> No "gridded_brier_cluster_{clus}.pkl" found, generating now...')
         #     generate_gridded_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_ls[clus], model)
-        if not utils.find(f'*cluster_{clus}_date_to_prediction.pkl', model.alpha_cluster_scoring_dir):
+        if len(utils.find(f'*cluster_{clus}_date_to_prediction.pkl', model.alpha_cluster_scoring_dir)) != model.tl_model.optimal_k and \
+            len(utils.find(f'*cluster_{clus}_cluster_size.pkl', model.alpha_cluster_scoring_dir)) != model.tl_model.optimal_k:
             print(f'{utils.time_now()} - <alpha-{alpha}> No "cluster_{clus}_date_to_prediction" found, generating now...')
             generate_gridded_brier_for_cluster(clus, gt_dataset_path, clus_pred_proba_ls_cluster_ls[clus], model)
 
@@ -428,6 +429,9 @@ def gridded_brier_individual_alpha(model, alpha):
     lon = ds.lon.size
     shape = (lat, lon)
 
+    # date_to_prediction_pathsls = [i for i in 
+    #     utils.find(f'*_date_to_prediction.pkl', model.alpha_cluster_scoring_dir) if 'alpha_general' not in str(i)]
+    # print(len(date_to_prediction_pathsls))
     date_to_prediction_pathsls = utils.find(f'*_date_to_prediction.pkl', model.alpha_cluster_scoring_dir)
     cluster_size_pathsls = utils.find(f'*cluster_size.pkl', model.alpha_cluster_scoring_dir)
     tots = sum([utils.open_pickle(i) for i in cluster_size_pathsls])
@@ -435,6 +439,7 @@ def gridded_brier_individual_alpha(model, alpha):
     desired_flat_size = shape[0]*shape[1]
     empty_grid_truths = np.zeros((tots,desired_flat_size))
     empty_grid_preds = np.zeros((tots,desired_flat_size))
+    print(empty_grid_preds.shape)
     CURSOR = 0
     for pkl in date_to_prediction_pathsls:
         for date, arr in enumerate(utils.open_pickle(pkl)):
@@ -490,7 +495,8 @@ def gridded_brier_all_alphas(model):
     #     for i, pkl in enumerate(gridded_briers_all_alphas_paths)]
     # all_gridded_briers = np.concatenate(gridded_briers_all_alphas, axis=0)
 
-    date_to_prediction_pathsls = [*Path(model.tl_model.cluster_dir).glob('**/**/*date_to_prediction*.pkl')]
+    #date_to_prediction_pathsls = [*Path(model.tl_model.cluster_dir).glob('**/**/*date_to_prediction*.pkl')] # captures alpha_general_dir
+    date_to_prediction_pathsls = [i for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*date_to_prediction*.pkl')] if 'alpha_general' not in str(i)]
     cluster_sizes = np.array([utils.open_pickle(i) for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*cluster_size*.pkl')]])
     tots = cluster_sizes.sum()
     
@@ -805,9 +811,21 @@ def gridded_AUC_individual_alpha(model, alpha):
     plt.savefig(f'{model.alpha_cluster_scoring_dir}/Gridded_AUC_individual_alpha_{alpha}', bbox_inches='tight', pad_inches=.7)
     plt.close('all')
 
-
 def get_CV_testsets_lengths(path):
     return np.array([len(utils.open_pickle(pkl)) for pkl in path])
+
+def get_all_date_to_prediction(arr_sizes, date_to_prediction_shapes, date_to_prediction_path_ls, model):
+    date_to_prediction = np.zeros((arr_sizes.sum(), 2, date_to_prediction_shapes[0][-1]))
+    cur_empty_grid_index = 0
+    for path_index, path in enumerate(date_to_prediction_path_ls):
+        print(f'{utils.time_now()} - Now on path_index {path_index}')
+        new_arr = utils.open_pickle(path)
+        for i,arr in enumerate(new_arr):
+            date_to_prediction[cur_empty_grid_index] = arr
+            cur_empty_grid_index += 1
+    return date_to_prediction
+    #utils.to_pickle('ALL_date_to_prediction', date_to_prediction, model.alpha_general_dir)
+    #print(f'"ALL_date_to_prediction.pkl" pickled!')
 
 def gridded_AUC_all_alphas(model):
     alpha_cluster_scoring_dirs_ls = [*Path(model.tl_model.cluster_dir).glob('**/*Evaluation*/*/')]
@@ -858,29 +876,35 @@ def gridded_AUC_all_alphas(model):
     date_to_prediction_path_ls = [i for i in utils.find(rf'*date_to_prediction.pkl', model.alpha_general_dir) if 'ALL_date_to_prediction.pkl' not in i]
     date_to_prediction_shapes = np.array([utils.open_pickle(pkl).shape for pkl in date_to_prediction_path_ls])
     arr_sizes = date_to_prediction_shapes[:,0]
-    date_to_prediction = np.zeros((arr_sizes.sum(), 2, date_to_prediction_shapes[0][-1]))
-    cur_empty_grid_index = 0
 
-    for path_index, path in enumerate(date_to_prediction_path_ls):
-        print(f'{utils.time_now()} - Now on path_index {path_index}')
-        new_arr = utils.open_pickle(path)
-        for i,arr in enumerate(new_arr):
-            date_to_prediction[cur_empty_grid_index] = arr
-            cur_empty_grid_index += 1
+    """
+    FIXME: This method is still too memory-hungry for sizes >4k
+    """
+    #if utils.find('*ALL_date_to_prediction', model.alpha_general_dir): pass
+    #else:
+        #print('"ALL_date_to_prediction.pkl" not found, generating now...')
+    date_to_prediction = get_all_date_to_prediction(arr_sizes, date_to_prediction_shapes, date_to_prediction_path_ls, model)
 
-    tpr = {} # holds TPR in dict form for use in intermediate steps
-    tprs_alpha = [] # holds interpolated TPRs for all clusters in this alpha, used to calc mean TPR for this alpha at the end
-    fpr = {}; base_fpr = np.linspace(0, 1, 101); roc_auc = {}
+    #date_to_prediction = utils.open_pickle(utils.find('*ALL_date_to_prediction', model.alpha_general_dir)[0])
+
+    # tpr = {} # holds TPR in dict form for use in intermediate steps
+    # tprs_alpha = [] # holds interpolated TPRs for all clusters in this alpha, used to calc mean TPR for this alpha at the end
+    # fpr = {}; 
+    # base_fpr = np.linspace(0, 1, 101)
+    roc_auc = {}
 
     print(f'{utils.time_now()} - Generating confusion matrices for {date_to_prediction.shape[-1]} grids...')
     for grid in range(date_to_prediction.shape[-1]):
-        fpr[grid], tpr[grid], _ = roc_curve( # for each sample of a grid
+        # fpr[grid], tpr[grid], _ = roc_curve( # for each sample of a grid
+        #     date_to_prediction[:,0,grid], date_to_prediction[:,1,grid], pos_label=True, drop_intermediate=False
+        # ) 
+        f, t , _ = roc_curve( # for each sample of a grid
             date_to_prediction[:,0,grid], date_to_prediction[:,1,grid], pos_label=True, drop_intermediate=False
         ) 
-        roc_auc[grid] = auc(fpr[grid], tpr[grid])
-        tpr_ = interp(base_fpr, fpr[grid], tpr[grid])
-        tpr_[0] = 0.0
-        tprs_alpha.append(tpr_)
+        roc_auc[grid] = auc(f, t)
+        # tpr_ = interp(base_fpr, f, t)
+        # tpr_[0] = 0.0
+        # tprs_alpha.append(tpr_)
         
     # ds = utils.open_pickle([*Path(model.tl_model.cluster_dir).glob('*RFprec_to_ClusterLabels_dataset*')][0])
     print(f'{utils.time_now()} - Taking coordinate data from {model.RFprec_to_ClusterLabels_dataset_path}')

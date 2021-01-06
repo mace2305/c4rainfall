@@ -12,33 +12,32 @@ import sys, logging
 domains_NE_mon = [
     # [-6.0, 10.0, 96.0, 111.5], # 248.0 DONE
     # [-16.0, 32.0, 94.0, 136.0], # 2016.0 DONE
-    # [-10.0, 20.0, 90.0, 150.0], [-10.0, 26.0, 87.0, 143.0], [-13.5, 29.5, 92.0, 138.0], 
-    # [-30.0, 18.0, 75.0, 168.0], [-30.0, 32.0, 75.0, 148.0], [-30.0, 42.0, 75.0, 138.0], [-5.0, 9.0, 95.0, 112.5], 
-    # [-10.0, 14.0, 90.0, 120.0]
+    
+## Attempted but no viable clustering
+#   [-10.0, 20.0, 90.0, 150.0], [-10.0, 26.0, 87.0, 143.0], [-13.5, 29.5, 92.0, 138.0], [-30.0, 18.0, 75.0, 168.0]
+#   [-30.0, 32.0, 75.0, 148.0], [-30.0, 42.0, 75.0, 138.0], [-5.0, 9.0, 95.0, 112.5], [-10.0, 14.0, 90.0, 120.0]
 ]
 
 domains_SW_mon = [
-   [-30.0, 25.0, 65.0, 147.0], # 4510.0
-   [-30.0, 30.0, 65.0, 140.0], # 4526.0
-   [-30.0, 42.0, 75.0, 138.0], # 4536.0
-   [-12.0, 16.0, 92.0, 118.0], # 728.0
-   [-4.0, 8.0, 93.5, 114.0], # 246.0
-   [-6.0, 10.0, 96.0, 111.5], # 720.0 wiped
-#    [-5.0, 9.0, 95.0, 112.5], [-6.0, 10.0, 82.5, 127.5], 
-#    [-10.0, 26.0, 87.0, 143.0], 
-#    [-12.0, 28.0, 90.0, 140.0], [-13.5, 29.5, 92.0, 138.0], 
-#    [-20.0, 20.0, 75.0, 125.0], [-20.0, 20.0, 75.0, 150.0], [-20.0, 20.0, 90.0, 140.0], [-20.0, 25.0, 75.0, 142.0], 
-#    [-20.0, 30.0, 90.0, 130.0], [-20.0, 35.0, 75.0, 130.0], 
-#    [-30.0, 32.0, 75.0, 148.0], 
-#    [-30.0, 25.0, 75.0, 130.0], 
+   #[-4.0, 8.0, 93.5, 114.0], # 246.0 DONE
+   #[-6.0, 10.0, 82.5, 127.5], # 720.0 DONE
+   #[-12.0, 16.0, 92.0, 118.0], # 728.0 DONE
+   #[-30.0, 25.0, 65.0, 147.0], # 4510.0 DONE
+   [-30.0, 42.0, 75.0, 138.0], # 4536.0 left alpha_general gridded pngs
+   [-30.0, 30.0, 65.0, 140.0], # 4526.0 left alpha_general gridded pngs
+   
+## Attempted but no viable clustering   
+#    [-5.0, 9.0, 95.0, 112.5], [-6.0, 10.0, 96.0, 111.5], [-10.0, 26.0, 87.0, 143.0], [-12.0, 28.0, 90.0, 140.0], [-13.5, 29.5, 92.0, 138.0], 
+#    [-20.0, 20.0, 75.0, 125.0], [-20.0, 20.0, 75.0, 150.0], [-20.0, 20.0, 90.0, 140.0], [-20.0, 25.0, 75.0, 142.0], [-20.0, 30.0, 90.0, 130.0], 
+#    [-20.0, 35.0, 75.0, 130.0], [-30.0, 32.0, 75.0, 148.0], [-30.0, 25.0, 75.0, 130.0], 
 ]
 
 domains_inter_mon = [
-    [-4.0, 8.0, 93.5, 114.0], # 246.0 wiped
-    [-12.0, 28.0, 90.0, 140.0], # 2000.0 wiped
-    [-6.0, 10.0, 82.5, 127.5] # 720.0
-    # [-5.0, 9.0, 95.0, 112.5],  [-10.0, 20.0, 90.0, 150.0], 
-    # [-13.5, 29.5, 92.0, 138.0], 
+    #[-6.0, 10.0, 82.5, 127.5], # 720.0 DONE
+    #[-12.0, 28.0, 90.0, 140.0], # 2000.0 DONE
+
+## Attempted but no viable clustering    
+#    [-4.0, 8.0, 93.5, 114.0], [-5.0, 9.0, 95.0, 112.5],  [-10.0, 20.0, 90.0, 150.0], [-13.5, 29.5, 92.0, 138.0], 
 ]
 
 hpparam = [60000, 16, 'train_batch', 4, .15, 0]
@@ -119,9 +118,9 @@ lon_max = np.max([i[3] for i in all_ds])
 domain_limits = (lat_min, lat_max, lon_min, lon_max)
 
 
-seq_strings = ("NE_mon", "SW_mon", "inter_mon")
+seq_strings = ("SW_mon", "inter_mon", "NE_mon")
 
-for i,d in enumerate((domains_NE_mon, domains_SW_mon, domains_inter_mon)):
+for i,d in enumerate((domains_SW_mon, domains_inter_mon, domains_NE_mon)):
     perms = [(dims, seq_strings[i], hpparam, domain_limits) for dims in d]
     for p in perms: print(f'Generating optimal cluster number (k) for {seq_strings[i]}: {p}, ')
     for p in perms:
@@ -140,24 +139,7 @@ for i,d in enumerate((domains_NE_mon, domains_SW_mon, domains_inter_mon)):
                     f'{p[0]} trained with hpparams {p[2]}')
         except:
             logger.info('\n\n\nError:======================\n\n', exc_info=True)
-            sys.exit()
-            # continue
-
-"""
-Below are means to get flattened, standardized arrays. This allows user to manually copy these "prepared" datasets.pkl
-to other machines to carry out model training, instead of porting over raw data.
-"""
-# seq_strings = "SW_mon", "NE_mon", "inter_mon"
-
-# for i,d in enumerate((domains_SW_mon, domains_NE_mon, domains_inter_mon)):
-#     perms = [(dims, seq_strings[i], hpparam, domain_limits) for dims in d]
-#     for p in perms: print(f'Generating optimal cluster number (k) for {seq_strings[i]}: {p}, ')
-#     for p in perms:
-#         try:
-#             modellers.TopLevelModel(p[0], p[1], p[2], p[3])
-#         except:
-#             logger.info('\n\n\nError:======================\n\n', exc_info=True)
-#             raise
+            sys.exit() # exit if exception arises
 
 
 
