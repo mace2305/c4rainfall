@@ -136,19 +136,19 @@ def prepare_dataset(model, dest):
     print('Pickling domain- & feature-constrained input & RF datasets...')
     if model.period == "NE_mon":
         input_ds = ds_combined_sliced.sel(time=is_NE_mon(ds_combined_sliced['time.month']))
-        rf_ds = rf_ds_sliced.sel(time=is_NE_mon(ds_RAINFALL['time.month']))
+        rf_ds = rf_ds_sliced.sel(time=is_NE_mon(rf_ds_sliced['time.month']))
         input_ds_serialized_path = utils.to_pickle('raw_input_ds_NE_mon_serialized', input_ds, dest)
         rf_ds_serialized_path = utils.to_pickle('raw_rf_ds_NE_mon_serialized', rf_ds, dest)
         return input_ds_serialized_path, rf_ds_serialized_path
     elif model.period == "SW_mon":
         input_ds = ds_combined_sliced.sel(time=is_SW_mon(ds_combined_sliced['time.month']))
-        rf_ds = ds_RAINFALL.sel(time=is_SW_mon(ds_RAINFALL['time.month']))
+        rf_ds = rf_ds_sliced.sel(time=is_SW_mon(rf_ds_sliced['time.month']))
         input_ds_serialized_path = utils.to_pickle('raw_input_ds_SW_mon_serialized', input_ds, dest)
         rf_ds_serialized_path = utils.to_pickle('raw_rf_ds_SW_mon_serialized', rf_ds, dest)
         return input_ds_serialized_path, rf_ds_serialized_path
     elif model.period == "inter_mon":
         input_ds = ds_combined_sliced.sel(time=is_inter_mon(ds_combined_sliced['time.month']))
-        rf_ds = ds_RAINFALL.sel(time=is_inter_mon(ds_RAINFALL['time.month']))
+        rf_ds = rf_ds_sliced.sel(time=is_inter_mon(rf_ds_sliced['time.month']))
         input_ds_serialized_path = utils.to_pickle('raw_input_ds_inter_mon_serialized', input_ds, dest)
         rf_ds_serialized_path = utils.to_pickle('raw_rf_ds_inter_mon_serialized', rf_ds, dest)
         return input_ds_serialized_path, rf_ds_serialized_path

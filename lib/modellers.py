@@ -461,26 +461,36 @@ class TopLevelModel:
             optimal_k = self.optimal_k
 
         print(f'cluster_dir: "{cluster_dir}", optimal_k: "{optimal_k}"')
+
+        if not utils.find('*_prelim_SOMscplot_*.png', cluster_dir): visualization.print_som_scatterplot_with_dmap(self, cluster_dir)
+        if not utils.find('*_kmeans*.png', cluster_dir): visualization.print_kmeans_scatterplot(self, cluster_dir, optimal_k)
+        self.grid_width = visualization.grid_width(optimal_k)
+        self.cbar_pos = np.max([(((clus)//self.grid_width)*self.grid_width)
+                                for i,clus in enumerate(np.arange(optimal_k))
+                                if i==(((clus)//self.grid_width)*self.grid_width)])
+        if not utils.find('*_ARmonthfrac_*.png', cluster_dir): visualization.print_ar_plot(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_mean_*.png', cluster_dir): visualization.print_rf_mean_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_max_*.png', cluster_dir): visualization.print_rf_max_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_rainday_gt1mm_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_heavyrainday_gt50mm_*.png', cluster_dir): visualization.print_rf_heavyrainday_gt50mm_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_90th_percentile_*.png', cluster_dir): visualization.print_rf_90th_percentile_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_qp*.png', cluster_dir): visualization.print_quiver_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_rhum-at*.png', cluster_dir): visualization.print_rhum_plots(self, cluster_dir, optimal_k)
         
-        for phrase in ('_prelim_SOMscplot_', '_kmeans-scplot_', '_ARmonthfrac_', '_RFplot_', '_qp-at', '_rhum-at'):
-            if utils.find(f'*{phrase}*.png', cluster_dir): pass
-            else:
-                print(f'{utils.time_now()} - Not all model outputs have been found in {cluster_dir}, generating them now...')
-                # print all visuals if even 1 not found
+        # for phrase in ('_prelim_SOMscplot_', '_kmeans-scplot_', '_ARmonthfrac_', '_RFplot_', '_qp-at', '_rhum-at'):
+        #     if utils.find(f'*{phrase}*.png', cluster_dir): pass
+        #     else:
+        #         print(f'{utils.time_now()} - Not all model outputs have been found in {cluster_dir}, generating them now...')
+        #         # print all visuals if even 1 not found
                 
-                visualization.print_som_scatterplot_with_dmap(self, cluster_dir);
-                visualization.print_kmeans_scatterplot(self, cluster_dir, optimal_k)
-                self.grid_width = visualization.grid_width(optimal_k)
-                self.cbar_pos = np.max([(((clus)//self.grid_width)*self.grid_width)
-                                        for i,clus in enumerate(np.arange(optimal_k))
-                                        if i==(((clus)//self.grid_width)*self.grid_width)])
-                visualization.print_ar_plot(self, cluster_dir, optimal_k)
-                #FIXME: print_ar_plot_granular(self)
-                visualization.print_ar_plot_granular(self, cluster_dir, optimal_k)
-                visualization.print_rf_plots(self, cluster_dir, optimal_k)
-                visualization.print_quiver_plots(self, cluster_dir, optimal_k)
-                visualization.print_rhum_plots(self, cluster_dir, optimal_k)
-                break
+        #         visualization.print_som_scatterplot_with_dmap(self, cluster_dir);
+        #         visualization.print_kmeans_scatterplot(self, cluster_dir, optimal_k)
+        #         visualization.print_ar_plot(self, cluster_dir, optimal_k)
+        #         #FIXME: print_ar_plot_granular(self)
+        #         visualization.print_rf_mean_plots(self, cluster_dir, optimal_k)
+        #         visualization.print_quiver_plots(self, cluster_dir, optimal_k)
+        #         visualization.print_rhum_plots(self, cluster_dir, optimal_k)
+        #         break
                 
         print(
             f'Outputs are available @: \n{cluster_dir}\n\nThese are clustering results for domain {self.domain} ({self.period}), '\
@@ -617,18 +627,31 @@ class AlphaLevelModel(TopLevelModel):
             print('Plotting ROC curves for individual alpha-{alpha} now!')
             evaluation.ROC_AUC_individual_alpha(self, alpha)
 
-        if utils.find(f'*Gridded_brier_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
-            pass
-        else:
-            print(f'{utils.time_now()} - Plotting gridded brier scores for individual alpha-{alpha}...')
-            evaluation.gridded_brier_individual_alpha(self, alpha)
+
+
+        # if utils.find(f'*Gridded_brier_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
+        #     pass
+        # else:
+        #     print(f'{utils.time_now()} - Plotting gridded brier scores for individual alpha-{alpha}...')
+        #     evaluation.gridded_brier_individual_alpha(self, alpha)
+
+        print(f'DEBUGGING: {utils.time_now()} - Plotting gridded brier scores for individual alpha-{alpha}...')
+        evaluation.gridded_brier_individual_alpha(self, alpha)
+
+
 
         
-        if utils.find(f'*Gridded_AUC_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir): 
-            pass
-        else:
-            print(f'{utils.time_now()} - Plotting gridded AUC for individual alpha-{alpha}...')
-            evaluation.gridded_AUC_individual_alpha(self, alpha)
+        # if utils.find(f'*Gridded_AUC_individual_alpha_{alpha}*.png', self.alpha_cluster_scoring_dir) and \
+        #     utils.find(f'*alpha_{alpha}_aucs.pkl', self.alpha_general_dir): 
+        #     pass
+        # else:
+        #     print(f'{utils.time_now()} - Plotting gridded AUC for individual alpha-{alpha}...')
+        #     evaluation.gridded_AUC_individual_alpha(self, alpha)
+
+        print(f'DEBUGGING: {utils.time_now()} - Plotting gridded AUC for individual alpha-{alpha}...')
+        evaluation.gridded_AUC_individual_alpha(self, alpha)
+
+
 
         print(f'Evaluation completed for raindays (1mm & above) predictions for alpha-{alpha}.')
 
@@ -645,17 +668,22 @@ class AlphaLevelModel(TopLevelModel):
             evaluation.ROC_all_alphas(self)
 
         
-        if utils.find(f'*gridded_AUC_whole-model*.png', self.alpha_general_dir): pass
-        else:
-            print('Plotting gridded AUC across all alphas...')
-            evaluation.gridded_AUC_all_alphas(self)
+        # if utils.find(f'*gridded_AUC_whole-model*.png', self.alpha_general_dir): pass
+        # else:
+        #     print('Plotting gridded AUC across all alphas...')
+        #     evaluation.gridded_AUC_all_alphas(self)
 
                 
-        if utils.find(f'*gridded_brier_whole-model*.png', self.alpha_general_dir): pass
-        else:
-            print('Plotting gridded brier scores across all alphas...')
-            evaluation.gridded_brier_all_alphas(self)
+        # if utils.find(f'*gridded_brier_whole-model*.png', self.alpha_general_dir): pass
+        # else:
+        #     print('Plotting gridded brier scores across all alphas...')
+        #     evaluation.gridded_brier_all_alphas(self)
 
+        print(f'DEBUGGING: {utils.time_now()} - Plotting gridded AUC across all alphas...')
+        evaluation.gridded_AUC_all_alphas(self)
+
+        print(f'DEBUGGING: {utils.time_now()} - Plotting gridded brier scores across all alphas...')
+        evaluation.gridded_brier_all_alphas(self)
         
         with open(f'{self.alpha_general_dir}/flag', 'w+') as flag: pass # write flag to signal evaluation completed
 

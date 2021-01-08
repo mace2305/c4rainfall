@@ -24,7 +24,7 @@ domains_SW_mon = [
    #[-12.0, 16.0, 92.0, 118.0], # 728.0 DONE
    #[-30.0, 25.0, 65.0, 147.0], # 4510.0 DONE
    [-30.0, 42.0, 75.0, 138.0], # 4536.0 left alpha_general gridded pngs
-   [-30.0, 30.0, 65.0, 140.0], # 4526.0 left alpha_general gridded pngs
+#    [-30.0, 30.0, 65.0, 140.0], # 4526.0 left alpha_general gridded pngs
    
 ## Attempted but no viable clustering   
 #    [-5.0, 9.0, 95.0, 112.5], [-6.0, 10.0, 96.0, 111.5], [-10.0, 26.0, 87.0, 143.0], [-12.0, 28.0, 90.0, 140.0], [-13.5, 29.5, 92.0, 138.0], 
@@ -140,7 +140,7 @@ for i,d in enumerate((domains_SW_mon, domains_inter_mon, domains_NE_mon)):
         except:
             logger.info('\n\n\nError:======================\n\n', exc_info=True)
             sys.exit() # exit if exception arises
-
+        sys.exit() # debugging
 
 
 
