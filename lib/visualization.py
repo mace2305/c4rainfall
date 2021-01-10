@@ -247,9 +247,71 @@ def print_ar_plot(model, dest, optimal_k):
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
-#FIXME
+
 def print_ar_plot_granular(model, dest, optimal_k):
-    pass
+    
+    ARMonthFracstarttime = timer(); print(f"{utils.time_now()} - starting ar (granular) drawing now...")
+
+    target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
+    all_clusters = np.unique(target_ds_withClusterLabels.cluster)
+
+    fig, axs = plt.subplots(len(model.months),1, figsize=(20,5*len(model.months)), sharey=True)
+    fig.subplots_adjust(right=0.8, hspace=0.3)
+    cbar_ax = fig.add_axes([0.81, 0.3, 0.025, 0.4])
+
+    cmap = plt.cm.summer_r
+    cmap.set_bad(color='thistle', alpha=0.2)
+
+    for mth_i, ax in enumerate(axs):
+        ds = target_ds_withClusterLabels.where(target_ds_withClusterLabels.time.dt.month==model.months[mth_i], drop=True)
+        
+        n_bins=31
+        arr = np.empty([len(all_clusters), 31])
+        extent = (0, arr.shape[1], arr.shape[0], 0)
+        
+        for i, clus in enumerate(all_clusters):
+            days = ds.where(ds.cluster==clus, drop=True)['time.day']
+            unique_days = list(np.unique(days))
+            c = {}
+            for num in unique_days:
+                c[num] = int(days.where(days==num).count().values)
+            arr[i] = np.array([c[d] if d in c.keys() else 0 for d in np.arange(1,32)])
+
+        arr = np.ma.masked_where(arr==0, arr)
+        im = ax.imshow(arr, cmap=cmap, extent=extent)
+
+        ax.set_yticks(np.arange(len(all_clusters))+.5)
+        ax.set_yticklabels(np.arange(len(all_clusters))+1)
+
+        ax.set_xticks(np.arange(0,31)+.5)
+        ax.set_xticklabels(np.arange(1,32))
+
+        ax.tick_params(labelsize=14)
+        ax.grid(False)
+        ax.set_title(f'{model.month_names[mth_i]}', fontweight='bold', fontsize=20, y=1.02)
+        
+    fig.add_subplot(111,frameon=False)
+    plt.ylabel('Cluster', fontsize=32, fontweight='bold')
+    plt.xlabel('Day of month', fontsize=25, labelpad=40, fontweight='bold')
+    plt.xticks([])
+    plt.yticks([])
+    plt.grid(False)
+
+    cbar = fig.colorbar(im,cax=cbar_ax,
+                        boundaries=np.arange(1, np.max(arr)+2), 
+                        ticks=np.arange(1,np.max(arr)+5)+.5)
+    cbar.set_label('Number occurance on particular day of month (days)', labelpad=20)
+    cbar.ax.set_yticklabels(np.arange(np.max(arr), dtype=int)+1);
+
+    plt.suptitle('Distribution of clusters for each month', fontweight='bold', x=.46, y=.95, fontsize=33)
+    plt.title('Greyed-out/non-colored regions indicate 0 occurances on such dates for these clusters.', y=1.04, fontsize=15)
+
+    print(f"Time taken is {utils.time_since(ARMonthFracstarttime)}\n")
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_ARmonthfrac_granular_{model.gridsize}x{model.gridsize}"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
 
 def print_rf_mean_plots(model, dest, optimal_k):
 
@@ -345,7 +407,7 @@ def print_rf_max_plots(model, dest, optimal_k):
     
     for clus in range(len(np.unique(labels_ar))):
         time.sleep(1); gc.collect()
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.mean("time").T
+        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.max("time").T
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -354,7 +416,7 @@ def print_rf_max_plots(model, dest, optimal_k):
         ax_rf_plot.set_facecolor('white')
         ax_rf_plot.add_feature(cf.LAND, facecolor='silver')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
-        ax_rf_plot.coastlines("50m", linewidth=1.5, color='cyan')
+        ax_rf_plot.coastlines("50m", linewidth=.8, color='cyan')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -414,7 +476,7 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
     all_colors = np.vstack((pt1to3, pt3to6, pt6to8)) 
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
-    fig.suptitle(f'Probability of >1mm rainfall over {model.dir_str}', fontweight='bold')
+    fig.suptitle(f'Proportion of grid with >1 mm of rainfall (days with rain), over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
     
     for clus in range(len(np.unique(labels_ar))):
         time.sleep(1); gc.collect()
@@ -457,7 +519,7 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                   loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                   bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Probability of >1mm of rainfall (%)', orientation='horizontal', pad=0.01)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >1 mm rainfall (over 1)', orientation='horizontal', pad=0.01)
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
@@ -489,7 +551,7 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
     all_colors = np.vstack((pt1to3, pt3to6, pt6to8))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
-    fig.suptitle(f'Probability of >50mm (heavy rainfall) over {model.dir_str}', fontweight='bold')
+    fig.suptitle(f'Proportion of grid with >50 mm of rainfall (heavy rain), over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
     
     for clus in range(len(np.unique(labels_ar))):
         time.sleep(1); gc.collect()
@@ -532,7 +594,7 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                   loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                   bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Probability of >50mm of rainfall (%)', orientation='horizontal', pad=0.01)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >50 mm rainfall (over 1)', orientation='horizontal', pad=0.01)
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
@@ -564,7 +626,7 @@ def print_rf_90th_percentile_plots(model, dest, optimal_k):
     all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
-    fig.suptitle(f'90th percentile RF over {model.dir_str}', fontweight='bold')
+    fig.suptitle(f'90th percentile RF over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
 
     for clus in range(len(np.unique(labels_ar))):
         time.sleep(1); gc.collect()
@@ -629,9 +691,20 @@ def print_quiver_plots(model, dest, optimal_k):
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
 
-    skip_interval = 3
+    # skip_interval = 3
+    # lon_qp = model.X[::skip_interval].values
+    # lat_qp = model.Y[::skip_interval].values
+
+    area = (model.LON_E-model.LON_W)*(model.LAT_N-model.LAT_S)
+    coastline_lw = .8
+    minshaft=2; scale=33
+    if area > 3000: skip_interval=4
+    elif 2000 < area <= 3000: skip_interval=3
+    elif 500 < area <= 2000 : skip_interval=2; minshaft=3; scale=33
+    else: skip_interval=1; minshaft=4; scale=25
     lon_qp = model.X[::skip_interval].values
     lat_qp = model.Y[::skip_interval].values
+
 
     for idx, pressure in enumerate(model.uwnd_vwnd_pressure_lvls):
         print(f'Currently on {pressure}hpa...')
@@ -654,7 +727,6 @@ def print_quiver_plots(model, dest, optimal_k):
             ax_qp.set_facecolor('white')
             ax_qp.add_feature(cf.LAND,facecolor='silver')
             ax_qp.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
-            ax_qp.coastlines("110m")
 
             if cluster < model.grid_width: # top ticks    
                 ax_qp.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -679,8 +751,11 @@ def print_quiver_plots(model, dest, optimal_k):
             v = vwnd_gridded_centroids/wndspd; 
             spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,10), 
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
-                                      alpha=0.65)
-            Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=2, scale=20)  
+                                      alpha=1)
+            Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=minshaft, scale=scale)  
+            conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
+            ax_qp.coastlines("110m", linewidth=coastline_lw, color='orangered')
+            ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
             time.sleep(1); gc.collect()
 
             if cluster == model.cbar_pos: # cbar
@@ -694,7 +769,7 @@ def print_quiver_plots(model, dest, optimal_k):
         print(f"=> Quiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp_v2-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
@@ -718,10 +793,10 @@ def print_rhum_plots(model, dest, optimal_k):
             ax_rhum = fig.add_subplot(gs_rhum[cluster], projection=ccrs.PlateCarree())
             ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
             ax_rhum.yaxis.set_major_formatter(model.lat_formatter)
+            ax_rhum.coastlines("110m", linewidth=1.3, color='w')
             ax_rhum.set_facecolor('white')
-            ax_rhum.add_feature(cf.LAND, facecolor='silver')
-            ax_rhum.set_extent([model.LON_W - 2, model.LON_E + 2, model.LAT_S - 1, model.LAT_N + 1])
-            ax_rhum.coastlines("50m")
+            ax_rhum.add_feature(cf.LAND, facecolor='k')
+            ax_rhum.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
 
             if cluster < model.grid_width: # top ticks    
                 ax_rhum.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -742,7 +817,10 @@ def print_rhum_plots(model, dest, optimal_k):
             normi = mpl.colors.Normalize(vmin=model.min_maxes['rhum_min'], vmax=model.min_maxes['rhum_max']);
             Rhum = ax_rhum.contourf(model.X, model.Y, rhum_gridded_centroids,
                                     np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),
-                                    norm=normi, extend='both', cmap='RdBu', alpha=0.7);
+                                    norm=normi, cmap='jet_r')
+            conts = ax_rhum.contour(Rhum, 'k:', linewidths=.5)
+            ax_rhum.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=10)
+
 
             if cluster == model.cbar_pos: # cbar
                 axins_rhum = inset_axes(ax_rhum, width='100%', height='100%', 
@@ -757,7 +835,7 @@ def print_rhum_plots(model, dest, optimal_k):
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum_v2-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')

@@ -466,7 +466,7 @@ def gridded_brier_individual_alpha(model, alpha):
                 min(lat_coords)+3*(max(lat_coords)-min(lat_coords))/4, 
                 max(lat_coords)], crs=ccrs.PlateCarree())
     cbar = plt.colorbar(contf, shrink=0.7)
-    plt.savefig(f'{model.alpha_cluster_scoring_dir}/Gridded_brier_individual_alpha_{alpha}', bbox_inches='tight', pad_inches=.7)
+    plt.savefig(f'{model.alpha_cluster_scoring_dir}/Gridded_brier_individual_alpha_{alpha}_v2', bbox_inches='tight', pad_inches=.7)
     plt.close('all')
     print(f'<alpha-{alpha}> Gridded brier individual plotted!')
 
@@ -476,7 +476,7 @@ def gridded_brier_individual_alpha(model, alpha):
 def gridded_brier_all_alphas(model):
     alpha_gridded_briers_pathls = utils.find('*alpha_*_gridded_brier_for_all_clus.pkl', model.alpha_general_dir)
     print(alpha_gridded_briers_pathls)
-    alpha_gridded_briers = np.concatenate([np.array(utils.open_pickle(i)) for i in alpha_gridded_briers_pathls])
+    alpha_gridded_briers = np.array([np.array(utils.open_pickle(i)) for i in alpha_gridded_briers_pathls])
     print(alpha_gridded_briers.shape)
 
     # date_to_prediction_pathsls = [i for i in [*Path(model.tl_model.cluster_dir).glob('**/**/*date_to_prediction*.pkl')] if 'alpha_general' not in str(i)]
@@ -484,11 +484,12 @@ def gridded_brier_all_alphas(model):
     tots = cluster_sizes.sum()
 
     alpha_sizes = np.array([i.sum() for i in np.array_split(cluster_sizes, model.ALPHAs)])
-    alph_weights = alpha_sizes/tots
-    weights = np.concatenate([np.full((alpha, ), alph_weights[i]) for i,alpha in enumerate(alpha_sizes)])
-    print(weights.shape)
-
-    gridded_brier_for_all_alphas = np.average(alpha_gridded_briers, axis=0, weights=weights)
+    print(alpha_sizes)
+    # alph_weights = alpha_sizes/tots
+    # weights = np.concatenate([np.full((alpha, ), alph_weights[i]) for i,alpha in enumerate(alpha_sizes)])
+    # print(weights.shape)
+    gridded_brier_for_all_alphas = np.average(alpha_gridded_briers, axis=0, weights=alpha_sizes)
+    # gridded_brier_for_all_alphas = np.average(alpha_gridded_briers, axis=0, weights=weights)
     
     print(f'{utils.time_now()} - Taking coordinate data from {model.RFprec_to_ClusterLabels_dataset_path}')
     ds = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
@@ -534,7 +535,7 @@ def gridded_brier_all_alphas(model):
     m = plt.cm.ScalarMappable(cmap="brg_r")
     m.set_array(gridded_brier_for_all_alphas)
     m.set_clim(0.,1.)
-    plt.suptitle(f'Brier score averages across all 5 cross-val test sets (n={weights.shape[0]}).', 
+    plt.suptitle(f'Brier score averages across all 5 cross-val test sets (n={tots}).', 
         fontweight='bold', fontsize=17, x=.67, y=.99)
     plt.title('Scores have been averaged across all dates of each test set. \n' \
         'Scores approaching 0 indicate better calibrated predictive models, \n' \
@@ -551,7 +552,7 @@ def gridded_brier_all_alphas(model):
                 max(lat_coords)], crs=ccrs.PlateCarree())
     cbar = plt.colorbar(contf, shrink=0.85, ticks=np.linspace(0,1,11)[1:], pad=.02)
     cbar.set_label('Brier score (0.0 is optimal. 1.0 indicates completely wrong forecast).', labelpad=13)
-    plt.savefig(f'{model.alpha_general_dir}/gridded_brier_whole-model', bbox_inches='tight', pad_inches=.7)
+    plt.savefig(f'{model.alpha_general_dir}/gridded_brier_whole-model_v2', bbox_inches='tight', pad_inches=.7)
     plt.close('all')
 
 
@@ -723,7 +724,6 @@ def gridded_AUC_individual_alpha(model, alpha):
             y_test = utils.open_pickle(gt_path)
             cluster_size = y_test.time.size
             shape = (y_test.lat.size, y_test.lon.size)
-            grids = shape[0] * shape[1]
             
             gt_results = [y_test.isel(time=t).precipitationCal.T.values > 1 for t in range(cluster_size)]
             pred_results = np.ravel (utils.open_pickle(clus_pred_proba_ls_cluster_ls[i])) # y_train for cluster [i]
@@ -737,7 +737,7 @@ def gridded_AUC_individual_alpha(model, alpha):
     tprs_alpha = [] # holds interpolated TPRs for all clusters in this alpha, used to calc mean TPR for this alpha at the end
     fpr = {}; base_fpr = np.linspace(0, 1, 101); roc_auc = {}
     for grid in range(date_to_prediction.shape[-1]):
-        fpr[grid], tpr[grid], thresh = roc_curve( # for each sample of a grid
+        fpr[grid], tpr[grid], _ = roc_curve( # for each sample of a grid
             date_to_prediction[:,0,grid], date_to_prediction[:,1,grid], pos_label=True, drop_intermediate=False
         ) 
         roc_auc[grid] = auc(fpr[grid], tpr[grid])
@@ -779,7 +779,7 @@ def gridded_AUC_individual_alpha(model, alpha):
                 min(lat_coords)+3*(max(lat_coords)-min(lat_coords))/4, 
                 max(lat_coords)], crs=ccrs.PlateCarree())
     cbar = plt.colorbar(contf, shrink=0.7, ticks=np.linspace(0,1,11)[:-1])
-    plt.savefig(f'{model.alpha_cluster_scoring_dir}/Gridded_AUC_individual_alpha_{alpha}', bbox_inches='tight', pad_inches=.7)
+    plt.savefig(f'{model.alpha_cluster_scoring_dir}/Gridded_AUC_individual_alpha_{alpha}_v2', bbox_inches='tight', pad_inches=.7)
     plt.close('all')
 
     utils.to_pickle(f'alpha_{alpha}_aucs', aucs, model.alpha_general_dir)
@@ -810,7 +810,9 @@ def gridded_AUC_all_alphas(model):
     weights = np.concatenate([np.full((alpha, ), alph_weights[i]) for i,alpha in enumerate(alpha_sizes)])
     print(weights.shape)
 
-    all_alpha_aucs = np.concatenate([np.array(utils.open_pickle(i)) for i in utils.find("*alpha_{alpha}_aucs.pkl", model.alpha_general_dir)])
+    all_alpha_aucs = np.array([np.array(utils.open_pickle(i)) for i in utils.find("*alpha_*_aucs.pkl", model.alpha_general_dir)])
+    number_cv_splits = all_alpha_aucs.shape[0]
+    all_alpha_aucs = np.mean(all_alpha_aucs, axis=0)
     
     # all_alpha_aucs = np.average(all_alpha_aucs, axis=0, weights=weights)
     
@@ -936,5 +938,5 @@ def gridded_AUC_all_alphas(model):
                 max(lat_coords)], crs=ccrs.PlateCarree())
     cbar = plt.colorbar(contf, shrink=0.85, ticks=np.linspace(0,1,11)[1:], pad=.02)
     cbar.set_label('AUC (1.0 is optimal, 0.5 is random, <0.5 indicates the model works worse than random guessing.)', labelpad=13)    
-    plt.savefig(f'{model.alpha_general_dir}/gridded_AUC_whole-model', bbox_inches='tight', pad_inches=.7)
+    plt.savefig(f'{model.alpha_general_dir}/gridded_AUC_whole-model_v2', bbox_inches='tight', pad_inches=.7)
     plt.close('all')
