@@ -425,19 +425,19 @@ def gridded_brier_individual_alpha(model, alpha):
     tots = sum([utils.open_pickle(i) for i in cluster_size_pathsls])
 
     desired_flat_size = shape[0]*shape[1]
-    empty_grid_truths = np.zeros((tots,desired_flat_size))
-    empty_grid_preds = np.zeros((tots,desired_flat_size))
-    print(empty_grid_preds.shape)
+    grid_gt = np.zeros((tots,desired_flat_size))
+    grid_pred = np.zeros((tots,desired_flat_size))
+    print(grid_pred.shape)
     CURSOR = 0
     for pkl in date_to_prediction_pathsls:
         for date, arr in enumerate(utils.open_pickle(pkl)):
-            empty_grid_truths[CURSOR] = arr[0]
-            empty_grid_preds[CURSOR] = arr[1]
+            grid_gt[CURSOR] = arr[0]
+            grid_pred[CURSOR] = arr[1]
             CURSOR += 1
 
     gridded_brier_for_all_clus = np.array(
         [np.apply_along_axis(func1d=brier_score_loss, axis=0, arr=arr[:,None], y_prob=y_prob[:,None]) 
-        for arr, y_prob in zip(empty_grid_truths.T, empty_grid_preds.T)]
+        for arr, y_prob in zip(grid_gt.T, grid_pred.T)]
         )
 
     gridded_brier_for_all_clus = gridded_brier_for_all_clus.reshape(shape)

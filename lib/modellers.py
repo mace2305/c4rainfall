@@ -1,57 +1,4 @@
-"""
-- SOM training
-- extraction of SOM products
-- kmeans clustering
-- loading from utils where to save models
-- saving of SOM & kmeans model 
-- storing of metadata in Model Classes
-
-
-## Classes for model tracking
-# Note: storing state is very expensive, this is for creating methods to serialize objects,
-# and loading objects where necessary. 
-
-- (1) full model, overview: RUN/full model i.d.,
-metadata, arguments/parameters (d,p,hp), "k"-generated/validated, 
-full model ran (date), visualized (bool), evaluated (bool), 
-PSI/year dependency, _years split, _ALPHA_completed, _ALPHA_remaining, ALPHA/split i.d.,
-scores for all splits,
-
-* CHOSEN_VARS, min_maxes, unique_pressure_lvls, lon_formatter, lat_formatter, uniq_markers
-Y (from config file)* raw input data directory, raw RF data dir
-* saved datasets dir
-**ds_len/"n_datapoints", latsize/lonsize, month, month_names...
-
-= method to surface which years split
-= method for which split done (_ALPHA_completed)
-= method to display average scoring for all splits (up to PSI, i.e. for this entire model RUN)
-
-
-- (2) ALPHA-split model(RUN, ALPHA) for evaluation: 
-DELTA/bootstrap sample no., _BETA/bootstrap sample i.d., score_total(_BETA, DELTA), 
-X_ALPHA_train, X_ALPHA_test,
-Y_ALPHA_train, Y_ALPHA_test, 
-avg RF CI for each cluster based off bootstrap evaluations - for this split,
-X_ALPHA_train_predicted_clusters, X_ALPHA_train_predicted_clusters dates,
-Y_ALPHA_pred/Y_ALPHA_train predicted rainfall, Y_ALPHA_GT/Y_ALPHA_test "ground truth" rainfall, 
-score_fit(Y_ALPHA_pred, Y_ALPHA_GT)/scores for clusters for DELTA samples - i.e. for split ALPHA,
-= method to display average scoring for all bootstrap samples (up to DELTA, i.e. for this split ALPHA)
-= method to change (**ds_len/"n_datapoints", latsize/lonsize, month, month_names...) accordingly
-
-
--- (3) BETA/bootstrap sample's model(X_ALPHA_train, _BETA), for low-level evaluation:  XXX not needed already
-_i/predicting for which cluster,
-_Y_pred_i/predicted RF for cluster i (of k) in BETA re-sample, Y_pred_j/sum of all _Y_pred_i's for cluster_i, 
-BETA_Y_pred/sum of all predicted RF for BETA sample, X_BETA_train, 
-X_BETA_test/validation set for all samples not picked up in bootstrap resampling, 
-Y_BETA_test_i/observed RF for cluster i of validation set, Y_BETA_test,
-*score_fit(Y_pred_j, Y_BETA_test) == {might be score_fit(_Y_pred_i, Y_BETA_test_i)}/score for unseen dataset for BETA,
-= return predicted RF for all clusters, up to k
-= method to change (**ds_len/"n_datapoints", latsize/lonsize, month, month_names...) accordingly
-
-
-"""
-import utils, prepare, validation, visualization, evaluation
+import utils, prepare, validation, visualization, evaluation, run_test
 from minisom import MiniSom
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from timeit import default_timer as timer
@@ -281,7 +228,6 @@ class TopLevelModel:
         metrics_dir = str(utils.metrics_dir / self.dir_hp_str / self.period) + f'_{self.month_names_joined}'
         os.makedirs(metrics_dir, exist_ok=True)
         self.metrics_dir_path = metrics_dir
-        # utils.update_cfgfile('Paths', 'metrics_dir', self.metrics_dir_path)
 
         if alpha:
             self.alpha_metrics_dir_path = str(Path(self.tl_model.metrics_dir_path) / f'alpha_{alpha}')
@@ -459,6 +405,10 @@ class TopLevelModel:
         else:
             cluster_dir = self.cluster_dir
             optimal_k = self.optimal_k
+            ind_cluster_plots_dir = str(Path(self.cluster_dir) / "indiv_cluster_plots")
+            self.ind_cluster_plots_dir = ind_cluster_plots_dir
+            os.makedirs(self.ind_cluster_plots_dir, exist_ok=True)
+            print(f'self.ind_cluster_plots_dir is @:\n{self.ind_cluster_plots_dir}')
 
         print(f'cluster_dir: "{cluster_dir}", optimal_k: "{optimal_k}"')
 
@@ -472,30 +422,101 @@ class TopLevelModel:
         if not utils.find('*_ARmonthfrac_granular_*.png', cluster_dir): visualization.print_ar_plot_granular(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_mean_*.png', cluster_dir): visualization.print_rf_mean_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_max_*.png', cluster_dir): visualization.print_rf_max_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_rainday_gt1mm_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_heavyrainday_gt50mm_*.png', cluster_dir): visualization.print_rf_heavyrainday_gt50mm_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_rainday_gt1mm_v3_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_heavyrainday_gt50mm_v2_*.png', cluster_dir): visualization.print_rf_heavyrainday_gt50mm_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_90th_percentile_*.png', cluster_dir): visualization.print_rf_90th_percentile_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_qp_v2*.png', cluster_dir): visualization.print_quiver_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_rhum_v2-at*.png', cluster_dir): visualization.print_rhum_plots(self, cluster_dir, optimal_k)
-        
-        # for phrase in ('_prelim_SOMscplot_', '_kmeans-scplot_', '_ARmonthfrac_', '_RFplot_', '_qp-at', '_rhum-at'):
-        #     if utils.find(f'*{phrase}*.png', cluster_dir): pass
-        #     else:
-        #         print(f'{utils.time_now()} - Not all model outputs have been found in {cluster_dir}, generating them now...')
-        #         # print all visuals if even 1 not found
-                
-        #         visualization.print_som_scatterplot_with_dmap(self, cluster_dir);
-        #         visualization.print_kmeans_scatterplot(self, cluster_dir, optimal_k)
-        #         visualization.print_ar_plot(self, cluster_dir, optimal_k)
-        #         #FIXME: print_ar_plot_granular(self)
-        #         visualization.print_rf_mean_plots(self, cluster_dir, optimal_k)
-        #         visualization.print_quiver_plots(self, cluster_dir, optimal_k)
-        #         visualization.print_rhum_plots(self, cluster_dir, optimal_k)
-        #         break
+        if not utils.find('*_qp_v3*.png', cluster_dir): visualization.print_quiver_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_rhum_v3-at*.png', cluster_dir): visualization.print_rhum_plots(self, cluster_dir, optimal_k)
+
+        if not alpha:
+            if not utils.find('*RFprec_to_ClusterLabels_dataset_vals_5xcoarsened_maxed.pkl', ind_cluster_plots_dir):
+                print(f'5X coarsened RF full dataset not found. Generating now @:\n{ind_cluster_plots_dir}')
+                self.full_rf_5Xcoarsened_vals_path = prepare.prepare_RF_vals_5x_coarsened(self, ind_cluster_plots_dir)
+            else:
+                self.full_rf_5Xcoarsened_vals_path = utils.find('*RFprec_to_ClusterLabels_dataset_vals_5xcoarsened_maxed.pkl', ind_cluster_plots_dir)[0]
+            # for clus in range(optimal_k):
+            #     """
+            #     Individual test plots
+            #     """
+            #     if not utils.find(f"*RF_proportion_above_90thpercentile_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_above_90thpercentile(self, ind_cluster_plots_dir, clus)
+            #     if not utils.find(f"*RF_proportion_under_10thpercentile_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_under_10thpercentile(self, ind_cluster_plots_dir, clus)
+            #     if not utils.find(f"*RF_proportion_above_fullmodel_mean_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_above_fullmodel_mean(self, ind_cluster_plots_dir, clus)
+            #     if not utils.find(f"*RF_proportion_above_250mm_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_above_250mm(self, ind_cluster_plots_dir, clus)
                 
         print(
             f'Outputs are available @: \n{cluster_dir}\n\nThese are clustering results for domain {self.domain} ({self.period}), '\
             f'SOM-trained with hpparams {self.hyperparameters} \nand 2nd-level k-means clustered with k at {optimal_k}.')
+
+    def assign_test_clusters_to_datasets(self):
+        target_ds_preprocessed = utils.open_pickle(utils.find('*target_ds_preprocessed.pkl', self.test_prepared_data_dir)[0])
+        rf_ds_preprocessed = utils.open_pickle(utils.find('*rf_ds_preprocessed.pkl', self.test_prepared_data_dir)[0])
+        standardized_stacked_arr = utils.open_pickle(utils.find('*standardized_stacked_arr.pkl', self.test_prepared_data_dir)[0])
+        
+        self.n_datapoints = target_ds_preprocessed.time.shape[0] # length of xr_dataset
+        self.lat_size = target_ds_preprocessed.lat.shape[0]
+        self.lon_size = target_ds_preprocessed.lon.shape[0]
+        self.months = np.unique(target_ds_preprocessed['time.month'].values) # month numbers
+        self.month_names = [calendar.month_name[m][:3] for m in np.unique(target_ds_preprocessed['time.month'])]
+        self.month_names_joined = '_'.join(self.month_names).upper() # to print months properly
+        self.years = np.unique(target_ds_preprocessed['time.year'].values) # unique years
+        self.X, self.Y = target_ds_preprocessed.lon, target_ds_preprocessed.lat
+
+        km = utils.open_pickle(self.kmeans_model_path)
+        predicted_clusters = km.predict(standardized_stacked_arr.astype(np.float))
+        target_ds_withClusterLabels = target_ds_preprocessed.assign_coords(cluster=("time", predicted_clusters))
+        dates_to_ClusterLabels = target_ds_withClusterLabels.cluster.reset_coords()
+        RFprec_to_ClusterLabels_dataset = xr.merge([rf_ds_preprocessed, dates_to_ClusterLabels])
+        utils.to_pickle('target_ds_withClusterLabels', target_ds_withClusterLabels, self.test_prepared_data_dir)
+        utils.to_pickle('RFprec_to_ClusterLabels_dataset', RFprec_to_ClusterLabels_dataset, self.test_prepared_data_dir)
+
+    def test_random_dates(self, dates_to_test, plots=5):
+        test_dir = str(Path(__file__).resolve().parents[1] / 'test/2021_Jan_28_testing2020randomdates')
+        self.test_RF_raw_data_dir = str(Path(__file__).resolve().parents[1] / "data/external/casestudytesting_29_Jan/raw/GPM_L3")
+        self.test_indp_vars_raw_data_dir = str(Path(__file__).resolve().parents[1] / "data/external/casestudytesting_29_Jan/raw/downloadERA")
+        self.test_prepared_data_dir = str(Path(__file__).resolve().parents[1] / f"data/external/casestudytesting_29_Jan/{self.period}_{self.dir_str}_prepared")
+        os.makedirs(self.test_prepared_data_dir, exist_ok=True)
+
+        number_of_test_plots_created = len(utils.find(f'*{self.period}_{self.dir_str}*_test_brier_gt50mm*.png', test_dir))
+        # number_of_test_plots_needed = date_to_test*plots
+        if number_of_test_plots_created >= dates_to_test: 
+            print(f"{number_of_test_plots_created} random dates have already been tested, please review at {test_dir}")
+            return
+        else:
+            print(f"{number_of_test_plots_created} dates tested so far.")
+            if not utils.find('*target_ds_preprocessed.pkl', self.test_prepared_data_dir) \
+                or not utils.find('*rf_ds_preprocessed.pkl', self.test_prepared_data_dir) \
+                    or not utils.find('*standardized_stacked_arr.pkl', self.test_prepared_data_dir): prepare.prep_for_testing_random_dates(self)
+
+            if not utils.find('*target_ds_withClusterLabels.pkl', self.test_prepared_data_dir) \
+                or not utils.find('*RFprec_to_ClusterLabels_dataset.pkl', self.test_prepared_data_dir): 
+                self.assign_test_clusters_to_datasets()
+
+            target_ds_withClusterLabels = utils.open_pickle(utils.find('*target_ds_withClusterLabels.pkl', self.test_prepared_data_dir)[0])
+            if self.period == "NE_mon": target_ds_withClusterLabels = target_ds_withClusterLabels.sel(time=prepare.is_NE_mon(target_ds_withClusterLabels['time.month']))
+            elif self.period == "SW_mon": target_ds_withClusterLabels = target_ds_withClusterLabels.sel(time=prepare.is_SW_mon(target_ds_withClusterLabels['time.month']))
+            elif self.period == "inter_mon": target_ds_withClusterLabels = target_ds_withClusterLabels.sel(time=prepare.is_inter_mon(target_ds_withClusterLabels['time.month']))
+            if target_ds_withClusterLabels.time.size == 0: 
+                print(f'There are no dates available in your test dataset to use for this {self.period} monsoon period, please verify. Ending testing here.')
+                return 
+
+            random_sampled_dates = np.array(np.random.choice(target_ds_withClusterLabels.time.data, dates_to_test-number_of_test_plots_created, replace=False))
+            random_sampled_dates.sort()
+            print(random_sampled_dates)
+
+            for i, sn in enumerate(range(number_of_test_plots_created+1, dates_to_test+1)):
+            # for sn in range(number_of_test_plots_created+1, dates_to_test+1):
+                print(f'Printing {sn} out of {dates_to_test} test plots now:')  
+                # random_sampled_date = np.random.choice(target_ds_withClusterLabels.time.data, 1)
+                random_sampled_date = [random_sampled_dates[i]]
+                
+                cluster = int(target_ds_withClusterLabels.sel(time=random_sampled_date).cluster.data)+1
+                run_test.print_test_date_abv_1mm_bool(self, test_dir, sn, random_sampled_date, cluster)
+                run_test.print_test_date_abv_1mm(self, test_dir, sn, random_sampled_date, cluster)   
+                run_test.print_brier_gt1mm(self, test_dir, sn, random_sampled_date, cluster)   
+                run_test.print_brier_gt50mm(self, test_dir, sn, random_sampled_date, cluster)   
+                run_test.print_test_date_zscore_against_fullmodel(self, test_dir, sn, random_sampled_date, cluster)
+
+
 
 
 class AlphaLevelModel(TopLevelModel):
@@ -690,12 +711,3 @@ class AlphaLevelModel(TopLevelModel):
 
 
 
-if __name__ == "__main__":
-    a = TopLevelModel([-12,28,90,120], "NE_mon", [80, 10, 'train_batch', 4, .15, 0])
-    a.train_SOM()
-    print(a.month_names)
-    a.detect_som_products()
-    a.generate_k()
-    a.get_k() 
-    a.train_kmeans()
-    a.print_outputs()

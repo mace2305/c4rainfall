@@ -12,6 +12,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import seaborn as sns
+import pandas as pd
 import cartopy.crs as ccrs
 import matplotlib.colors as colors
 from matplotlib import cm
@@ -21,6 +22,7 @@ from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from shapely import geometry
 from timeit import default_timer as timer
 from sklearn.preprocessing import minmax_scale, RobustScaler
+from sklearn.metrics import brier_score_loss
 import collections, gc, time, logging
 
 mpl.rcParams['savefig.dpi'] = 300
@@ -470,28 +472,40 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
     rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
     rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
     
-    pt1to3 = plt.cm.BrBG(np.linspace(0, .25, 3))
-    pt3to6 = plt.cm.gist_earth(np.linspace(0.75, 0.4, 5))
-    pt6to8 = plt.cm.ocean(np.linspace(.8, .3, 4))
-    all_colors = np.vstack((pt1to3, pt3to6, pt6to8)) 
+    # pt1to3 = plt.cm.BrBG(np.linspace(0, .25, 3))
+    # pt3to6 = plt.cm.gist_earth(np.linspace(0.75, 0.4, 5))
+    # pt6to8 = plt.cm.ocean(np.linspace(.8, .3, 4))
+    # all_colors = np.vstack((pt1to3, pt3to6, pt6to8)) 
+    # terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    # zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 5))
+    # eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 5))
+    # twnty5_to_40 = plt.cm.gist_earth(np.linspace(0.15, 0.9, 8))
+    # all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    # terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    a = plt.cm.YlOrRd(np.linspace(.9, .2, 5))
+    b = plt.cm.YlGnBu(np.linspace(.2, .8, 10))
+    all_colors = np.vstack((a,b))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
-    fig.suptitle(f'Proportion of grid with >1 mm of rainfall (days with rain), over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
+    fig.suptitle(f'Proportion of grid with >1 mm of rainfall (raindays), over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E\n' \
+        f'Note: regions in black indicate 0.0% chance of >1mm rainfall across grid members.', fontweight='bold')
     
     for clus in range(len(np.unique(labels_ar))):
         time.sleep(1); gc.collect()
         data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).sel(
             lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
-        data_pred_proba_morethan1mm = np.mean([data.isel(time=t).precipitationCal.T.values > 1 for t in range(data.time.size)], axis=0)
+        mean = np.mean([data.isel(time=t).precipitationCal.T.values > 1 for t in range(data.time.size)], axis=0)
+        data_pred_proba_morethan1mm = np.ma.masked_where(mean<=0, mean)*100
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
         ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
         ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
-        ax_rf_plot.set_facecolor('white')
-        ax_rf_plot.add_feature(cf.LAND, facecolor='silver')
+        ax_rf_plot.set_facecolor('k')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
-        ax_rf_plot.coastlines("50m", linewidth=.5, color='w')
+        ax_rf_plot.coastlines("50m", linewidth=.7, color='w')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -509,9 +523,12 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
             ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
         else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
         
-        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, data_pred_proba_morethan1mm, np.linspace(0,1,21), 
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, data_pred_proba_morethan1mm, 
+        np.linspace(0,100,11), 
         cmap=terrain_map, 
-        extend='max')
+        extend='neither')
+        conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
+        ax_rf_plot.clabel(conts, conts.levels, colors='w', inline=True, fmt='%1.f', fontsize=8)
 
         time.sleep(1); gc.collect()
 
@@ -519,7 +536,7 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                   loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                   bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >1 mm rainfall (over 1)', orientation='horizontal', pad=0.01)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >1 mm rainfall (%)', orientation='horizontal', pad=0.01, ticks=np.arange(0,100,10))
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
@@ -528,7 +545,7 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_rainday_gt1mm_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_rainday_gt1mm_v3_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -545,10 +562,22 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
     rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
     rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
     
-    pt1to3 = plt.cm.terrain(np.linspace(.7, .6, 3))
-    pt3to6 = plt.cm.gist_ncar(np.linspace(.4, 1, 5))
-    pt6to8 = plt.cm.ocean(np.linspace(.8, .4, 4))
-    all_colors = np.vstack((pt1to3, pt3to6, pt6to8))
+    # pt1to3 = plt.cm.terrain(np.linspace(.7, .6, 3))
+    # pt3to6 = plt.cm.gist_ncar(np.linspace(.4, 1, 5))
+    # pt6to8 = plt.cm.ocean(np.linspace(.8, .4, 4))
+    # all_colors = np.vstack((pt1to3, pt3to6, pt6to8))
+    # terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    # zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
+    # eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
+    # twnty5_to_40 = plt.cm.gist_earth(np.linspace(0.15, 0.9, 8))
+    # all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    # terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+    
+    zero_to_ten = plt.cm.pink(np.linspace(1, .2, 3))
+    eleven_to_25 = plt.cm.gist_earth(np.linspace(0.75, 0.2, 5))
+    twnty5_to_40 = plt.cm.gist_stern(np.linspace(0.3, 0.1, 5))
+    all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
     fig.suptitle(f'Proportion of grid with >50 mm of rainfall (heavy rain), over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
@@ -584,7 +613,7 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
             ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
         else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
         
-        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, ddata_pred_proba_morethan50mm, np.linspace(0,0.8,17), 
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, ddata_pred_proba_morethan50mm, np.linspace(0,1,101), 
         cmap=terrain_map, 
         extend='max')
 
@@ -603,7 +632,7 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_heavyrainday_gt50mm_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_heavyrainday_gt50mm_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -701,7 +730,7 @@ def print_quiver_plots(model, dest, optimal_k):
     if area > 3000: skip_interval=4
     elif 2000 < area <= 3000: skip_interval=3
     elif 500 < area <= 2000 : skip_interval=2; minshaft=3; scale=33
-    else: skip_interval=1; minshaft=4; scale=25
+    else: skip_interval=1; minshaft=3; scale=33
     lon_qp = model.X[::skip_interval].values
     lat_qp = model.Y[::skip_interval].values
 
@@ -749,12 +778,12 @@ def print_quiver_plots(model, dest, optimal_k):
             time.sleep(1); gc.collect()
             u = uwnd_gridded_centroids/wndspd; 
             v = vwnd_gridded_centroids/wndspd; 
-            spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,10), 
+            spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,19), 
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
                                       alpha=1)
             Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=minshaft, scale=scale)  
             conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
-            ax_qp.coastlines("110m", linewidth=coastline_lw, color='orangered')
+            ax_qp.coastlines("50m", linewidth=coastline_lw, color='orangered')
             ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
             time.sleep(1); gc.collect()
 
@@ -769,7 +798,7 @@ def print_quiver_plots(model, dest, optimal_k):
         print(f"=> Quiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp_v2-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp_v3-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
@@ -793,7 +822,7 @@ def print_rhum_plots(model, dest, optimal_k):
             ax_rhum = fig.add_subplot(gs_rhum[cluster], projection=ccrs.PlateCarree())
             ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
             ax_rhum.yaxis.set_major_formatter(model.lat_formatter)
-            ax_rhum.coastlines("110m", linewidth=1.3, color='w')
+            ax_rhum.coastlines("50m", linewidth=.7, color='w')
             ax_rhum.set_facecolor('white')
             ax_rhum.add_feature(cf.LAND, facecolor='k')
             ax_rhum.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
@@ -835,12 +864,253 @@ def print_rhum_plots(model, dest, optimal_k):
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum_v2-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum_v3-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
 
     print(f"\n\nTime taken to plot RHUM: {utils.time_since(rhumstarttime)}.")
+
+
+def print_ind_clus_proportion_above_90thpercentile(model, dest, clus):
+
+    print(f'{utils.time_now()} - Generating >90th percentile RF plot for clus: {clus+1}')
+
+    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    coarsened_clus_rf_ds = RFprec_to_ClusterLabels_dataset.precipitationCal.where(
+        RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).coarsen(lat=5, lon=5, boundary='trim').max()
+
+    RFprec_to_ClusterLabels_dataset_vals = utils.open_pickle(f'{model.full_rf_5Xcoarsened_vals_path}')
+    percen90 = np.percentile(RFprec_to_ClusterLabels_dataset_vals, 90, axis=0)
+
+    compared_clus_to_90percent = (coarsened_clus_rf_ds > percen90).values
+    time_averaged_gridwise_RF_of_cluster_compared_to_90pcent = np.mean(compared_clus_to_90percent, axis=0)*100
+
+    rf_ds_lon = coarsened_clus_rf_ds.lon
+    rf_ds_lat = coarsened_clus_rf_ds.lat
+
+    fig = plt.Figure(figsize=(12,15))
+    ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
+
+    fig.suptitle(f"Proportion of cluster {int(clus+1)} grid members receiving more RF \nthan the 90th percentile value of corresponding grid within full model",
+                fontweight='bold', fontsize=15, y=.95, ha='center')
+    ax.set_title(f"Total dates for each grid in this cluster: {compared_clus_to_90percent.shape[0]}", fontsize=14, y=1.03)
+
+    ax.set_facecolor('w')
+    ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+    ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+
+    zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
+    eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
+    twnty5_to_40 = plt.cm.gist_earth(np.linspace(0.15, 0.9, 8))
+    all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    RF = ax.contourf(rf_ds_lon, rf_ds_lat, 
+        time_averaged_gridwise_RF_of_cluster_compared_to_90pcent.T,
+        np.linspace(0,100,51), 
+        alpha=1,
+        cmap=terrain_map,
+        extend='max')
+    conts = ax.contour(RF, 'w', linewidths=.1)
+    ax.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=8)
+
+    cbar_rf = fig.colorbar(RF, label='Proportion of grid members receiving RF that exceeds 90th percentile of corresponding grid within full model (%)', orientation='horizontal', \
+                            pad=0.05, shrink=.8, ticks=np.arange(0,100,10))
+    cbar_rf.ax.xaxis.set_ticks_position('top')
+    cbar_rf.ax.xaxis.set_label_position('top')
+    ax.set_xticks(np.round(np.linspace(model.LON_W, model.LON_E, 10)), crs=ccrs.PlateCarree())
+    ax.xaxis.tick_top()
+    ax.set_xlabel('')
+
+    ax.set_yticks(np.round(np.linspace(model.LAT_S, model.LAT_N, 10)), crs=ccrs.PlateCarree())
+    ax.yaxis.set_label_position("right")
+    ax.yaxis.tick_right()
+    ax.set_ylabel('')
+
+    fn = f"{dest}/RF_proportion_above_90thpercentile_cluster_{int(clus+1)}.png"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
+
+
+def print_ind_clus_proportion_under_10thpercentile(model, dest, clus):
+
+    print(f'{utils.time_now()} - Generating <10th percentile RF plot for clus: {clus+1}')
+
+    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    coarsened_clus_rf_ds = RFprec_to_ClusterLabels_dataset.precipitationCal.where(
+        RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).coarsen(lat=5, lon=5, boundary='trim').max()
+
+    RFprec_to_ClusterLabels_dataset_vals = utils.open_pickle(f'{model.full_rf_5Xcoarsened_vals_path}')
+    percen10 = np.percentile(RFprec_to_ClusterLabels_dataset_vals, 10, axis=0)
+
+    compared_clus_to_10percent = (coarsened_clus_rf_ds < percen10).values
+    time_averaged_gridwise_RF_of_cluster_compared_to_10pcent = np.mean(compared_clus_to_10percent, axis=0)*100
+
+    rf_ds_lon = coarsened_clus_rf_ds.lon
+    rf_ds_lat = coarsened_clus_rf_ds.lat
+
+    fig = plt.Figure(figsize=(12,15))
+    ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
+
+    fig.suptitle(f"Proportion of cluster {int(clus+1)} grid members receiving less RF \nthan the 10th percentile value of corresponding grid within full model",
+                fontweight='bold', fontsize=15, y=.95, ha='center')
+    ax.set_title(f"Total dates for each grid in this cluster: {compared_clus_to_10percent.shape[0]}", fontsize=14, y=1.03)
+
+    ax.set_facecolor('w')
+    ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+    ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+
+    zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
+    eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
+    twnty5_to_40 = plt.cm.gist_earth(np.linspace(0.15, 0.9, 8))
+    all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    RF = ax.contourf(rf_ds_lon, rf_ds_lat, 
+        time_averaged_gridwise_RF_of_cluster_compared_to_10pcent.T,
+        np.linspace(0,100,51), 
+        alpha=1,
+        cmap=terrain_map,
+        extend='max')
+    conts = ax.contour(RF, 'w', linewidths=.1)
+    ax.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=8)
+
+    cbar_rf = fig.colorbar(RF, label='Proportion of grid members receiving RF that falls below the 10th percentile of corresponding grid within full model (%)', orientation='horizontal', \
+                            pad=0.05, shrink=.8, ticks=np.arange(0,100,10))
+    cbar_rf.ax.xaxis.set_ticks_position('top')
+    cbar_rf.ax.xaxis.set_label_position('top')
+    ax.set_xticks(np.round(np.linspace(model.LON_W, model.LON_E, 10)), crs=ccrs.PlateCarree())
+    ax.xaxis.tick_top()
+    ax.set_xlabel('')
+
+    ax.set_yticks(np.round(np.linspace(model.LAT_S, model.LAT_N, 10)), crs=ccrs.PlateCarree())
+    ax.yaxis.set_label_position("right")
+    ax.yaxis.tick_right()
+    ax.set_ylabel('')
+
+    fn = f"{dest}/RF_proportion_under_10thpercentile_cluster_{int(clus+1)}.png"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
+    
+
+def print_ind_clus_proportion_above_fullmodel_mean(model, dest, clus):
+
+    print(f'{utils.time_now()} - Generating > mean RF plot for clus: {clus+1}')
+
+    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    coarsened_clus_rf_ds = RFprec_to_ClusterLabels_dataset.precipitationCal.where(
+        RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).coarsen(lat=5, lon=5, boundary='trim').max()
+
+    RFprec_to_ClusterLabels_dataset_vals = utils.open_pickle(f'{model.full_rf_5Xcoarsened_vals_path}')
+    gridmean = np.mean(RFprec_to_ClusterLabels_dataset_vals, axis=0)
+
+    compared_clus_to_gridmean = (coarsened_clus_rf_ds > gridmean).values
+    time_averaged_gridwise_RF_of_cluster_compared_to_gridmean = np.mean(compared_clus_to_gridmean, axis=0)*100
+
+    rf_ds_lon = coarsened_clus_rf_ds.lon
+    rf_ds_lat = coarsened_clus_rf_ds.lat
+
+    fig = plt.Figure(figsize=(12,15))
+    ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
+
+    fig.suptitle(f"Proportion of cluster {int(clus+1)} grid members receiving more RF \nthan the mean RF value of corresponding grid within full model",
+                fontweight='bold', fontsize=15, y=.95, ha='center')
+    ax.set_title(f"Total dates for each grid in this cluster: {compared_clus_to_gridmean.shape[0]}", fontsize=14, y=1.03)
+
+    ax.set_facecolor('w')
+    ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+    ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+
+    zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
+    eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
+    twnty5_to_40 = plt.cm.gist_earth(np.linspace(0.15, 0.9, 8))
+    all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    RF = ax.contourf(rf_ds_lon, rf_ds_lat, 
+        time_averaged_gridwise_RF_of_cluster_compared_to_gridmean.T,
+        np.linspace(0,100,51), 
+        alpha=1,
+        cmap=terrain_map,
+        extend='max')
+    conts = ax.contour(RF, 'w', linewidths=.1)
+    ax.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=8)
+
+    cbar_rf = fig.colorbar(RF, label='Proportion of grid members receiving RF above full model\'s grid-mean (%)', orientation='horizontal', \
+                            pad=0.05, shrink=.8, ticks=np.arange(0,100,10))
+    cbar_rf.ax.xaxis.set_ticks_position('top')
+    cbar_rf.ax.xaxis.set_label_position('top')
+    ax.set_xticks(np.round(np.linspace(model.LON_W, model.LON_E, 10)), crs=ccrs.PlateCarree())
+    ax.xaxis.tick_top()
+    ax.set_xlabel('')
+
+    ax.set_yticks(np.round(np.linspace(model.LAT_S, model.LAT_N, 10)), crs=ccrs.PlateCarree())
+    ax.yaxis.set_label_position("right")
+    ax.yaxis.tick_right()
+    ax.set_ylabel('')
+
+    fn = f"{dest}/RF_proportion_above_fullmodel_mean_cluster_{int(clus+1)}.png"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
+
+
+def print_ind_clus_proportion_above_250mm(model, dest, clus):
+
+    print(f'{utils.time_now()} - Generating > 250mm RF plot for clus: {clus+1}')
+
+    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    coarsened_clus_rf_ds = RFprec_to_ClusterLabels_dataset.precipitationCal.where(
+        RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).coarsen(lat=5, lon=5, boundary='trim').max()
+
+    compared_clus_to_250mm = (coarsened_clus_rf_ds > 250).values
+    time_averaged_gridwise_RF_of_cluster_compared_to_250mm = np.mean(compared_clus_to_250mm, axis=0)*100
+    time_averaged_gridwise_RF_of_cluster_compared_to_250mm = np.ma.masked_where(time_averaged_gridwise_RF_of_cluster_compared_to_250mm==0, time_averaged_gridwise_RF_of_cluster_compared_to_250mm)
+
+    rf_ds_lon = coarsened_clus_rf_ds.lon
+    rf_ds_lat = coarsened_clus_rf_ds.lat
+
+    fig = plt.Figure(figsize=(12,15))
+    ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
+
+    fig.suptitle(f"Proportion of cluster {int(clus+1)} grid members receiving more than 250mm of RF in a day.",
+                fontweight='bold', fontsize=14, y=.97, ha='center')
+    ax.set_title(f"Total dates for each grid in this cluster: {compared_clus_to_250mm.shape[0]}\n" 
+             "Note that all regions in grey have 0% of the grid members with >250mm of RF.", fontsize=13, y=1.04)
+
+    ax.set_facecolor('silver')
+    ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+    ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', np.vstack(plt.cm.CMRmap(np.linspace(1,0,12))))
+
+    RF = ax.contourf(rf_ds_lon, rf_ds_lat, 
+        time_averaged_gridwise_RF_of_cluster_compared_to_250mm.T,
+        np.linspace(0,20,11), 
+        alpha=1,
+        cmap=terrain_map,
+        extend='max')
+
+    cbar_rf = fig.colorbar(RF, label='Proportion of grid members receiving >250mm (%)', orientation='horizontal', \
+                            pad=0.05, shrink=.8, ticks=np.arange(0,21,1))
+    cbar_rf.ax.xaxis.set_ticks_position('top')
+    cbar_rf.ax.xaxis.set_label_position('top')
+    ax.set_xticks(np.round(np.linspace(model.LON_W, model.LON_E, 10)), crs=ccrs.PlateCarree())
+    ax.xaxis.tick_top()
+    ax.set_xlabel('')
+
+    ax.set_yticks(np.round(np.linspace(model.LAT_S, model.LAT_N, 10)), crs=ccrs.PlateCarree())
+    ax.yaxis.set_label_position("right")
+    ax.yaxis.tick_right()
+    ax.set_ylabel('')
+
+    fn = f"{dest}/RF_proportion_above_250mm_cluster_{int(clus+1)}.png"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
     
 
 def get_domain_geometry(model, dest):
@@ -864,28 +1134,5 @@ def get_domain_geometry(model, dest):
     plt.savefig(fn)
     print(f'Extent saved @:\n{fn}')
     plt.close('all')
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 

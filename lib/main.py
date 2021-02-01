@@ -10,8 +10,8 @@ import sys, logging
 # from utils import parse_args
 
 domains_NE_mon = [
-    [-6.0, 10.0, 96.0, 111.5], # 248.0 DONE
     [-16.0, 32.0, 94.0, 136.0], # 2016.0 DONE
+    [-6.0, 10.0, 96.0, 111.5], # 248.0 DONE
     
 ## Attempted but no viable clustering
 #   [-10.0, 20.0, 90.0, 150.0], [-10.0, 26.0, 87.0, 143.0], [-13.5, 29.5, 92.0, 138.0], [-30.0, 18.0, 75.0, 168.0]
@@ -110,7 +110,7 @@ def NFoldcrossvalidation_eval(alpha_level_model):
     alpha_level_model.compile_scores()
     
 
-all_ds = [j for i in (domains_SW_mon, domains_NE_mon, domains_inter_mon) for j in i]
+all_ds = [j for i in (domains_NE_mon, domains_SW_mon, domains_inter_mon) for j in i]
 lat_min = np.min([i[0] for i in all_ds])
 lat_max = np.max([i[1] for i in all_ds])
 lon_min = np.min([i[2] for i in all_ds])
@@ -118,9 +118,9 @@ lon_max = np.max([i[3] for i in all_ds])
 domain_limits = (lat_min, lat_max, lon_min, lon_max)
 
 
-seq_strings = ("SW_mon", "inter_mon", "NE_mon")
+seq_strings = ("NE_mon", "inter_mon", "SW_mon")
 
-for i,d in enumerate((domains_SW_mon, domains_inter_mon, domains_NE_mon)):
+for i,d in enumerate((domains_NE_mon, domains_inter_mon, domains_SW_mon)):
     perms = [(dims, seq_strings[i], hpparam, domain_limits) for dims in d]
     for p in perms: print(f'Generating optimal cluster number (k) for {seq_strings[i]}: {p}, ')
     for p in perms:
@@ -133,10 +133,13 @@ for i,d in enumerate((domains_SW_mon, domains_inter_mon, domains_NE_mon)):
                 alpha_model = modellers.AlphaLevelModel(tl_model, p[0], p[1], p[2], p[3], PSI=3, PSI_overlap=0);
                 print(alpha_model)
                 NFoldcrossvalidation_eval(alpha_model)
-                print(f'### Evaluation completed for domain {p[0]} in {p[1]}.\n\n\n')
+                print(f'### Evaluation completed for domain {p[0]} in {p[1]}.\n')
             else:
                 print('\n==> Clustering configuration sub-optimal, no outputs will be generated for\n' \
                     f'{p[0]} trained with hpparams {p[2]}')
+            dates_to_test = 10
+            tl_model.test_random_dates(dates_to_test)
+            print(f"{dates_to_test} dates have been randomly selected for testing.\n\n\n")
         except:
             logger.info('\n\n\nError:======================\n\n', exc_info=True)
             sys.exit() # exit if exception arises

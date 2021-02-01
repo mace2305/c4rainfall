@@ -20,6 +20,7 @@ print = logger.info
 
 
 def get_files(directory, exts=['.nc', '.nc4']):
+    #FIXME: 29Jan: use utils.find(keyword, dir) for consistency
     ls = []
     for ext in exts:
         for i in sorted(Path(directory).glob(f'*{ext}')): ls.append(str(i))
@@ -65,7 +66,7 @@ def get_raw_input_data(model):
 def get_raw_target_data(model):
     """
     more information can be acquired here: https://disc.gsfc.nasa.gov/datasets/GPM_3IMERGDF_06/summary
-    wget -r -c  -nH -nc -np -nd --user=XXX@EMAIL.com --password=XXX --auth-no-challenge --content-disposition -A nc4,xml "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDF.06/2007/"
+    wget -r -c  -nH -nc -np -nd --user=XXX@EMAIL.com --password=XXX --auth-no-challenge --content-disposition -A nc4,xml "https://gpm1.gesdisc.eosdis.nasa.gov/data/GPM_L3/GPM_3IMERGDF.06/2020/07"
     generating a list of the above wget sentence, and then running them through console/terminal.
     """
     lat_min, lat_max, lon_min, lon_max = model.domain_limits
@@ -310,3 +311,75 @@ def flatten_and_standardize_dataset(model, dest):
     standardized_stacked_arr_path = utils.to_pickle('standardized_stacked_arr', standardized_stacked_arr, dest)
 
     return standardized_stacked_arr_path
+
+
+def prepare_RF_vals_5x_coarsened(model, dest):
+    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    RFprec_to_ClusterLabels_dataset_coarsened = RFprec_to_ClusterLabels_dataset.coarsen(lat=5, lon=5, boundary='trim').max()
+    RFprec_to_ClusterLabels_dataset_vals = RFprec_to_ClusterLabels_dataset_coarsened.precipitationCal.values
+    full_rf_5Xcoarsened_vals_path = utils.to_pickle('RFprec_to_ClusterLabels_dataset_vals_5xcoarsened_maxed', RFprec_to_ClusterLabels_dataset_vals, dest)
+    return full_rf_5Xcoarsened_vals_path
+
+
+def prep_for_testing_random_dates(model):
+    indp_vars_raw_data_paths = utils.find('*nc', model.test_indp_vars_raw_data_dir)
+    RF_raw_data_paths = utils.find('*nc4', model.test_RF_raw_data_dir)
+    CHOSEN_VARS_ds = [rf"{path}" for var in model.CHOSEN_VARS for path in indp_vars_raw_data_paths if f"{var}" in path ]
+    ds_CHOSEN_VARS_renamed = xr.open_mfdataset(CHOSEN_VARS_ds, chunks={'time':4}).rename({
+            'latitude':'lat', 'longitude':'lon', 'r':'rhum', 'u':'uwnd', 'v':'vwnd'
+        })
+    ds_CHOSEN_VARS_renamed = utils.remove_expver(ds_CHOSEN_VARS_renamed)
+    ds_sliced = ds_CHOSEN_VARS_renamed.sel(
+            level=slice(np.min(model.unique_pressure_lvls),np.max(model.unique_pressure_lvls)), 
+            lat=slice(model.LAT_N,model.LAT_S), lon=slice(model.LON_W,model.LON_E))
+
+    ds_sliced_rhum = ds_sliced.rhum
+    ds_sliced_rhum_no925 = ds_sliced_rhum.drop_sel({"level":925})
+    ds_sliced_uwnd_only = ds_sliced.uwnd
+    ds_sliced_vwnd_only = ds_sliced.vwnd
+    ds_combined_sliced = xr.merge([ds_sliced_rhum_no925, ds_sliced_uwnd_only, ds_sliced_vwnd_only], compat='override')
+    ds_RAINFALL = xr.open_mfdataset(RF_raw_data_paths).sel(
+        lat=slice(model.LAT_S, model.LAT_N), lon=slice(model.LON_W,model.LON_E))
+    ds_RAINFALL['time'] = ds_RAINFALL.indexes['time'].to_datetimeindex()
+    valid_datetimes = [i for i in ds_combined_sliced.time.data if i in ds_RAINFALL.time.data]
+
+    target_ds_preprocessed = ds_combined_sliced.sel(time=valid_datetimes)
+    desired_res = .75
+    coarsen_magnitude = int(desired_res/np.ediff1d(target_ds_preprocessed.isel(lon=slice(0,2)).lon.data)[0])
+    print(f'Coarsen magnitude set at: {coarsen_magnitude} toward desired spatial resolu. of {desired_res}')
+    target_ds_preprocessed = target_ds_preprocessed.coarsen(lat=coarsen_magnitude, lon=coarsen_magnitude, boundary='trim').mean()
+    rf_ds_preprocessed = ds_RAINFALL.sel(time=valid_datetimes)
+    utils.to_pickle('target_ds_preprocessed', target_ds_preprocessed, model.test_prepared_data_dir)
+    utils.to_pickle('rf_ds_preprocessed', rf_ds_preprocessed, model.test_prepared_data_dir)
+
+    reshaped_unnorma_darrays = {}
+    reshaped_unnorma_darrays['rhum'], reshaped_unnorma_darrays['uwnd'], reshaped_unnorma_darrays['vwnd'] = {}, {}, {}
+
+    n_datapoints, lat_size, lon_size = target_ds_preprocessed.time.size, target_ds_preprocessed.lat.size, target_ds_preprocessed.lon.size
+    
+    for level in model.rhum_pressure_levels:
+        print(f'@{level}... ')
+        reshaped_unnorma_darrays['rhum'][level] = np.reshape(
+            target_ds_preprocessed.rhum.sel(level=level).values, (n_datapoints, lat_size*lon_size ))
+
+    print(f"\n{utils.time_now()} - reshaping uwnd/vwnd dataarrays now, total levels to loop: {model.uwnd_vwnd_pressure_lvls}.")
+
+    for level in model.uwnd_vwnd_pressure_lvls:
+        print(f'@{level}... ')
+        reshaped_unnorma_darrays['uwnd'][level] = np.reshape(
+            target_ds_preprocessed.uwnd.sel(level=level).values, (n_datapoints, lat_size*lon_size ))
+        reshaped_unnorma_darrays['vwnd'][level] = np.reshape(
+            target_ds_preprocessed.vwnd.sel(level=level).values, (n_datapoints, lat_size*lon_size ))
+
+    # stacking unstandardized dataarrays
+    print("Stacking unstandardized dataarrays now...")
+    stacked_unstandardized_ds = np.hstack([reshaped_unnorma_darrays[var][lvl] for var in reshaped_unnorma_darrays for lvl in reshaped_unnorma_darrays[var]])
+
+    # standardizing the stacked dataarrays
+    print("standardizing stacked dataarrays now...")
+    print(f'"stacked_unstandardized_ds.shape" is {stacked_unstandardized_ds.shape}')
+    transformer = RobustScaler(quantile_range=(25, 75))
+    standardized_stacked_arr = transformer.fit_transform(stacked_unstandardized_ds) # som & kmeans training
+    transformer.get_params()
+
+    utils.to_pickle('standardized_stacked_arr', standardized_stacked_arr, model.test_prepared_data_dir)
