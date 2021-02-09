@@ -2,12 +2,10 @@
 """
 main user interface for cli run
 """
-import utils, modellers
+import utils, modellers, average_model_scoring
 import numpy as np
 import sys, logging
 
-
-# from utils import parse_args
 
 domains_NE_mon = [
     [-16.0, 32.0, 94.0, 136.0], # 2016.0 DONE
@@ -119,6 +117,7 @@ domain_limits = (lat_min, lat_max, lon_min, lon_max)
 
 
 seq_strings = ("NE_mon", "inter_mon", "SW_mon")
+successful_evals = []
 
 for i,d in enumerate((domains_NE_mon, domains_inter_mon, domains_SW_mon)):
     perms = [(dims, seq_strings[i], hpparam, domain_limits) for dims in d]
@@ -134,6 +133,7 @@ for i,d in enumerate((domains_NE_mon, domains_inter_mon, domains_SW_mon)):
                 print(alpha_model)
                 NFoldcrossvalidation_eval(alpha_model)
                 print(f'### Evaluation completed for domain {p[0]} in {p[1]}.\n')
+                successful_evals.append(f'{p[1]}_{p[0]}') # period, domain
             else:
                 print('\n==> Clustering configuration sub-optimal, no outputs will be generated for\n' \
                     f'{p[0]} trained with hpparams {p[2]}')
@@ -144,8 +144,10 @@ for i,d in enumerate((domains_NE_mon, domains_inter_mon, domains_SW_mon)):
             logger.info('\n\n\nError:======================\n\n', exc_info=True)
             sys.exit() # exit if exception arises
         # sys.exit() # debugging
+        
 
-
+average_model_scoring.main(successful_evals)
+print('Relevant arrays have been stashed in sqlite3 database.')
 
 
 

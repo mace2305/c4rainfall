@@ -421,10 +421,10 @@ class TopLevelModel:
         if not utils.find('*_ARmonthfrac_*.png', cluster_dir): visualization.print_ar_plot(self, cluster_dir, optimal_k)
         if not utils.find('*_ARmonthfrac_granular_*.png', cluster_dir): visualization.print_ar_plot_granular(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_mean_*.png', cluster_dir): visualization.print_rf_mean_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_max_*.png', cluster_dir): visualization.print_rf_max_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_max_v2*.png', cluster_dir): visualization.print_rf_max_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_rainday_gt1mm_v3_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_heavyrainday_gt50mm_v2_*.png', cluster_dir): visualization.print_rf_heavyrainday_gt50mm_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_90th_percentile_*.png', cluster_dir): visualization.print_rf_90th_percentile_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_90th_percentile_v2*.png', cluster_dir): visualization.print_rf_90th_percentile_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_qp_v3*.png', cluster_dir): visualization.print_quiver_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_rhum_v3-at*.png', cluster_dir): visualization.print_rhum_plots(self, cluster_dir, optimal_k)
 
@@ -476,7 +476,7 @@ class TopLevelModel:
         self.test_prepared_data_dir = str(Path(__file__).resolve().parents[1] / f"data/external/casestudytesting_29_Jan/{self.period}_{self.dir_str}_prepared")
         os.makedirs(self.test_prepared_data_dir, exist_ok=True)
 
-        number_of_test_plots_created = len(utils.find(f'*{self.period}_{self.dir_str}*_test_brier_gt50mm*.png', test_dir))
+        number_of_test_plots_created = len(utils.find(f'*{self.period}_{self.dir_str}*_test_zscore_against_fullmodel*.png', test_dir))
         # number_of_test_plots_needed = date_to_test*plots
         if number_of_test_plots_created >= dates_to_test: 
             print(f"{number_of_test_plots_created} random dates have already been tested, please review at {test_dir}")
@@ -510,10 +510,10 @@ class TopLevelModel:
                 random_sampled_date = [random_sampled_dates[i]]
                 
                 cluster = int(target_ds_withClusterLabels.sel(time=random_sampled_date).cluster.data)+1
-                run_test.print_test_date_abv_1mm_bool(self, test_dir, sn, random_sampled_date, cluster)
-                run_test.print_test_date_abv_1mm(self, test_dir, sn, random_sampled_date, cluster)   
+                # run_test.print_test_date_abv_1mm_bool(self, test_dir, sn, random_sampled_date, cluster)
+                run_test.print_test_date_abv_1mm_to500mm(self, test_dir, sn, random_sampled_date, cluster)   
                 run_test.print_brier_gt1mm(self, test_dir, sn, random_sampled_date, cluster)   
-                run_test.print_brier_gt50mm(self, test_dir, sn, random_sampled_date, cluster)   
+                run_test.print_heavyrfforecastcomparison_gt50mm(self, test_dir, sn, random_sampled_date, cluster)   
                 run_test.print_test_date_zscore_against_fullmodel(self, test_dir, sn, random_sampled_date, cluster)
 
 

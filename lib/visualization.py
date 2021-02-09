@@ -346,6 +346,7 @@ def print_rf_mean_plots(model, dest, optimal_k):
         ax_rf_plot.add_feature(cf.LAND, facecolor='black')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
         ax_rf_plot.coastlines("50m", linewidth=.5, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -399,10 +400,15 @@ def print_rf_max_plots(model, dest, optimal_k):
     rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
     rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
     
-    zero_to_ten = plt.cm.pink(np.linspace(1, .2, 3))
-    eleven_to_25 = plt.cm.gist_earth(np.linspace(0.75, 0.2, 5))
-    twnty5_to_40 = plt.cm.gist_stern(np.linspace(0.3, 0.1, 5))
-    all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    # zero_to_ten = plt.cm.pink(np.linspace(1, .2, 3))
+    # eleven_to_25 = plt.cm.gist_earth(np.linspace(0.75, 0.2, 5))
+    # twnty5_to_40 = plt.cm.gist_stern(np.linspace(0.3, 0.1, 5))
+    # all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    # terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    a = plt.cm.pink(np.linspace(.9, .2, 2))
+    b = plt.cm.gnuplot2(np.linspace(0.4, .9, 6))
+    all_colors = np.vstack((a,  b))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
     fig.suptitle(f'MAX rainfall (mm) over individual grids for domain {model.dir_str}', fontweight='bold')
@@ -410,6 +416,7 @@ def print_rf_max_plots(model, dest, optimal_k):
     for clus in range(len(np.unique(labels_ar))):
         time.sleep(1); gc.collect()
         data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.max("time").T
+        data_gt1mm = np.ma.masked_where(data<=1, data)
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -418,7 +425,8 @@ def print_rf_max_plots(model, dest, optimal_k):
         ax_rf_plot.set_facecolor('white')
         ax_rf_plot.add_feature(cf.LAND, facecolor='silver')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
-        ax_rf_plot.coastlines("50m", linewidth=.8, color='cyan')
+        ax_rf_plot.coastlines("50m", linewidth=.5, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.3, color='k', linestyle='dashed')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -431,12 +439,10 @@ def print_rf_max_plots(model, dest, optimal_k):
             ax_rf_plot.yaxis.set_label_position("right")
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
-
-        if clus == 0: # title
-            ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
-        else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
         
-        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, data, np.linspace(0,450,16), 
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, data_gt1mm, 
+        np.arange(0,500,50),
+        # np.linspace(0,450,16), 
         cmap=terrain_map, 
         extend='max')
 
@@ -446,7 +452,8 @@ def print_rf_max_plots(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                   loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                   bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Rainfall (mm)', orientation='horizontal', pad=0.01)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Rainfall (mm)', orientation='horizontal', pad=0.01,
+                                  ticks=np.arange(0,500,50))
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
@@ -455,7 +462,7 @@ def print_rf_max_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_max_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_max_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -506,6 +513,7 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
         ax_rf_plot.set_facecolor('k')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
         ax_rf_plot.coastlines("50m", linewidth=.7, color='w')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='w', linestyle='dashed')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -518,10 +526,6 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
             ax_rf_plot.yaxis.set_label_position("right")
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
-
-        if clus == 0: # title
-            ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
-        else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
         
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, data_pred_proba_morethan1mm, 
         np.linspace(0,100,11), 
@@ -596,6 +600,7 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
         ax_rf_plot.add_feature(cf.LAND, facecolor='silver')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
         ax_rf_plot.coastlines("50m", linewidth=.3, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.3, color='k', linestyle='dashed')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -608,10 +613,6 @@ def print_rf_heavyrainday_gt50mm_plots(model, dest, optimal_k):
             ax_rf_plot.yaxis.set_label_position("right")
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
-
-        if clus == 0: # title
-            ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
-        else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
         
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, ddata_pred_proba_morethan50mm, np.linspace(0,1,101), 
         cmap=terrain_map, 
@@ -643,34 +644,43 @@ def print_rf_90th_percentile_plots(model, dest, optimal_k):
     rfstarttime = timer(); print(f'{utils.time_now()} - Plotting 90th of rainfall over grids now.\nTotal of {optimal_k} clusters, now printing cluster: ')
 
     RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-    labels_ar = utils.open_pickle(model.labels_ar_path)
+    # labels_ar = utils.open_pickle(model.labels_ar_path)
     
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
     rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
     rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
 
-    zero_to_ten = plt.cm.pink(np.linspace(1, .2, 3))
-    eleven_to_25 = plt.cm.gist_earth(np.linspace(0.75, 0.3, 5))
-    twnty5_to_40 = plt.cm.gnuplot2(np.linspace(0.4, .9, 5))
-    all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    # zero_to_ten = plt.cm.pink(np.linspace(1, .2, 3))
+    # eleven_to_25 = plt.cm.gist_earth(np.linspace(0.75, 0.3, 5))
+    # twnty5_to_40 = plt.cm.gnuplot2(np.linspace(0.4, .9, 5))
+    # all_colors = np.vstack((zero_to_ten, eleven_to_25, twnty5_to_40))
+    # terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    z = plt.cm.gist_stern(np.linspace(1, .9, 1))
+    a = plt.cm.terrain(np.linspace(0.6, .1, 4))
+    b = plt.cm.gnuplot2(np.linspace(0.4, .9, 12))
+    all_colors = np.vstack((z, a, b))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
     fig.suptitle(f'90th percentile RF over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
 
-    for clus in range(len(np.unique(labels_ar))):
+    # for clus in range(len(np.unique(labels_ar))):
+    for i, clus in enumerate([i for i in np.unique(RFprec_to_ClusterLabels_dataset.cluster) if not np.isnan(i)]):
         time.sleep(1); gc.collect()
         data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
-        percen_90 = np.percentile(data.precipitationCal.values, 90, axis=0).T
+            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N)).precipitationCal.values
+        data_gt1mm = np.ma.masked_where(data<=1, data)
+        percen_90 = np.percentile(data_gt1mm, 90, axis=0).T
         time.sleep(1); gc.collect()
 
-        ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
+        ax_rf_plot = fig.add_subplot(gs_rf_plot[i], projection=ccrs.PlateCarree())
         ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
         ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
         ax_rf_plot.set_facecolor('white')
         ax_rf_plot.add_feature(cf.LAND, facecolor='silver')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
-        ax_rf_plot.coastlines("50m", linewidth=.5, color='k')
+        ax_rf_plot.coastlines("50m", linewidth=.8, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
 
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
@@ -683,12 +693,10 @@ def print_rf_90th_percentile_plots(model, dest, optimal_k):
             ax_rf_plot.yaxis.set_label_position("right")
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
-
-        if clus == 0: # title
-            ax_rf_plot.set_title(f"Rainfall plots from SOM nodes,\ncluster no.{clus+1}", loc='left')
-        else: ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
         
-        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, percen_90, np.linspace(0,100,21), 
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, percen_90, 
+        # np.linspace(0,100,21), 
+        np.arange(0,500,12.5),
         cmap=terrain_map, 
         extend='max')
 
@@ -698,7 +706,8 @@ def print_rf_90th_percentile_plots(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                   loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                   bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Rainfall (mm)', orientation='horizontal', pad=0.01)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Rainfall (mm)', orientation='horizontal', pad=0.01,
+            ticks=np.arange(0,500,50))
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
@@ -707,7 +716,7 @@ def print_rf_90th_percentile_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_90th_percentile_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_90th_percentile_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -784,6 +793,7 @@ def print_quiver_plots(model, dest, optimal_k):
             Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=minshaft, scale=scale)  
             conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
             ax_qp.coastlines("50m", linewidth=coastline_lw, color='orangered')
+            ax_qp.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
             ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
             time.sleep(1); gc.collect()
 
@@ -823,6 +833,7 @@ def print_rhum_plots(model, dest, optimal_k):
             ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
             ax_rhum.yaxis.set_major_formatter(model.lat_formatter)
             ax_rhum.coastlines("50m", linewidth=.7, color='w')
+            ax_rhum.add_feature(cf.BORDERS, linewidth=.5, color='w', linestyle='dashed')
             ax_rhum.set_facecolor('white')
             ax_rhum.add_feature(cf.LAND, facecolor='k')
             ax_rhum.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
@@ -899,6 +910,7 @@ def print_ind_clus_proportion_above_90thpercentile(model, dest, clus):
     ax.set_facecolor('w')
     ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
     ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+    ax.add_feature(cf.BORDERS, linewidth=.5, color='lightseagreen', linestyle='dashed')
 
     zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
     eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
@@ -961,6 +973,7 @@ def print_ind_clus_proportion_under_10thpercentile(model, dest, clus):
     ax.set_facecolor('w')
     ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
     ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+    ax.add_feature(cf.BORDERS, linewidth=.5, color='lightseagreen', linestyle='dashed')
 
     zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
     eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
@@ -1023,6 +1036,7 @@ def print_ind_clus_proportion_above_fullmodel_mean(model, dest, clus):
     ax.set_facecolor('w')
     ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
     ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+    ax.add_feature(cf.BORDERS, linewidth=.5, color='lightseagreen', linestyle='dashed')
 
     zero_to_ten = plt.cm.gist_stern(np.linspace(1, .2, 2))
     eleven_to_25 = plt.cm.gnuplot2(np.linspace(.9, 0.25, 10))
@@ -1084,6 +1098,7 @@ def print_ind_clus_proportion_above_250mm(model, dest, clus):
     ax.set_facecolor('silver')
     ax.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
     ax.coastlines("50m", linewidth=.8, color='lightseagreen', alpha=1)
+    ax.add_feature(cf.BORDERS, linewidth=.5, color='lightseagreen', linestyle='dashed')
 
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', np.vstack(plt.cm.CMRmap(np.linspace(1,0,12))))
 
@@ -1127,6 +1142,7 @@ def get_domain_geometry(model, dest):
     ax.set_facecolor('silver')
     ax.add_feature(cf.LAND, facecolor='white')
     ax.coastlines('110m')
+    ax.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
     ax.set_yticks(np.linspace(lat_s_lim, -lat_s_lim, 5), crs=ccrs.PlateCarree())
     ax.set_xticks(np.linspace(lon_w_lim, lon_e_lim, 6), crs=ccrs.PlateCarree())
 

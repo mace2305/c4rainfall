@@ -15,6 +15,7 @@ dask-worker-space
 develop-eggs/
 dist/
 downloads/
+docs/test_forecast_evaluations/
 eggs/
 .eggs/
 # lib/
