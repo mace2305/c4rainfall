@@ -13,6 +13,8 @@ data/*
 datamodel
 dask-worker-space
 develop-eggs/
+docs/Report
+docs/articles
 dist/
 downloads/
 docs/test_forecast_evaluations/
@@ -29,6 +31,8 @@ test/*.ipynb
 test/*/
 test/*.out
 test/*.pid
+test/c4rainfall_11Feb_slides.pdf
+test/summary\ &\ insights\ from\ Kai\ Yuan
 var/
 wheels/
 pip-wheel-metadata/
