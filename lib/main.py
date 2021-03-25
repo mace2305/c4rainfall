@@ -18,11 +18,13 @@ domains_NE_mon = [
 
 domains_SW_mon = [
    [-4.0, 8.0, 93.5, 114.0], # 246.0 DONE
-   [-6.0, 10.0, 82.5, 127.5], # 720.0 DONE
-   [-12.0, 16.0, 92.0, 118.0], # 728.0 DONE
-   [-30.0, 25.0, 65.0, 147.0], # 4510.0 DONE
-   [-30.0, 42.0, 75.0, 138.0], # 4536.0 DONE
-   [-30.0, 30.0, 65.0, 140.0], # 4526.0 left alpha_general gridded pngs
+   [-30.0, 30.0, 65.0, 140.0], # 4526.0 DONE 
+   
+## Positive results, but ultimately thrown because above 2 provides nice comparisons!
+   #[-6.0, 10.0, 82.5, 127.5], # 720.0 DONE
+   #[-12.0, 16.0, 92.0, 118.0], # 728.0 DONE
+   #[-30.0, 25.0, 65.0, 147.0], # 4510.0 DONE
+   #[-30.0, 42.0, 75.0, 138.0], # 4536.0 DONE
    
 ## Attempted but no viable clustering   
 #    [-5.0, 9.0, 95.0, 112.5], [-6.0, 10.0, 96.0, 111.5], [-10.0, 26.0, 87.0, 143.0], [-12.0, 28.0, 90.0, 140.0], [-13.5, 29.5, 92.0, 138.0], 
@@ -116,10 +118,10 @@ lon_max = np.max([i[3] for i in all_ds])
 domain_limits = (lat_min, lat_max, lon_min, lon_max)
 
 
-seq_strings = ("NE_mon", "inter_mon", "SW_mon")
+seq_strings = ("SW_mon", "NE_mon", "inter_mon")
 successful_evals = []
 
-for i,d in enumerate((domains_NE_mon, domains_inter_mon, domains_SW_mon)):
+for i,d in enumerate((domains_SW_mon, domains_NE_mon, domains_inter_mon)):
     perms = [(dims, seq_strings[i], hpparam, domain_limits) for dims in d]
     for p in perms: print(f'Generating optimal cluster number (k) for {seq_strings[i]}: {p}, ')
     for p in perms:
