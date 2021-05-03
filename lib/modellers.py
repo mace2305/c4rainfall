@@ -413,7 +413,7 @@ class TopLevelModel:
             print(f'self.ind_cluster_plots_dir is @:\n{self.ind_cluster_plots_dir}')
 
         print(f'cluster_dir: "{cluster_dir}", optimal_k: "{optimal_k}"')
-        min_area = 1500
+        min_area = 2000
         if area > min_area: too_large = True
         else: too_large = False
 
@@ -429,35 +429,47 @@ class TopLevelModel:
         if not utils.find('*_RFplot_mean_*.png', cluster_dir): visualization.print_rf_mean_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_max_v2*.png', cluster_dir): visualization.print_rf_max_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_rainday_gt1mm_v3_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_rainday_gt1mm_SGonly_v3_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_SGonly_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_heavyrainday_gt50mm_v2_*.png', cluster_dir): visualization.print_rf_heavyrf_gt50mm_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_90th_percentile_v2*.png', cluster_dir): visualization.print_rf_90th_percentile_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_qp_v3*.png', cluster_dir): visualization.print_quiver_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_qp_v5*.png', cluster_dir): visualization.print_quiver_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_qp_v1_ANOM*.png', cluster_dir): visualization.print_quiver_ANOM_whole(self, cluster_dir, optimal_k)
+        if not utils.find('*_qp_sgonly*.png', cluster_dir): visualization.print_quiver_plots_sgonly(self, cluster_dir, optimal_k)
+        
         if not utils.find('*qp_baseline*.png', cluster_dir): visualization.print_quiver_baseline(self, cluster_dir, optimal_k)
+        if not utils.find('*qp_baseline_Regionalonly*.png', cluster_dir): visualization.print_quiver_baseline_regional(self, cluster_dir, optimal_k)
         if not utils.find('*_rhum_v3-at*.png', cluster_dir): visualization.print_rhum_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_rhum_v1_ANOM-at*.png', cluster_dir): visualization.print_RHUM_ANOM_whole(self, cluster_dir, optimal_k)
+        if not utils.find('*_rhum_sgonly-at*.png', cluster_dir): visualization.print_rhum_plots_sgonly(self, cluster_dir, optimal_k)
+        if not utils.find('*_rhum_v5_ANOM-at*.png', cluster_dir): visualization.print_RHUM_ANOM_whole(self, cluster_dir, optimal_k)
         if not utils.find('*rhum_baseline*.png', cluster_dir): visualization.print_rhum_baseline(self, cluster_dir, optimal_k)
 
-        if not utils.find('*RF_gt50mm_baseline*.png', cluster_dir): visualization.print_RF_baselines(self, cluster_dir, optimal_k, 
+        if not utils.find('*RFplot_90th_percentile_baseline*.png', cluster_dir): visualization.print_RF_baselines(self, cluster_dir, optimal_k, 
         too_large)
 
         if not utils.find('*_qp_Regionalonly*.png', cluster_dir): visualization.print_quiver_Regionalonly(self, cluster_dir, optimal_k)
         if not utils.find('*_rhum_Regionalonly*.png', cluster_dir): visualization.print_RHUM_Regionalonly(self, cluster_dir, optimal_k)
-        if not utils.find('*_rhum_Regionalonly_ANOM*.png', cluster_dir): visualization.print_RHUM_ANOM_Regionalonly(self, cluster_dir, optimal_k)
+        if not utils.find('*_rhum_Regionalonly_ANOM_v2*.png', cluster_dir): visualization.print_RHUM_ANOM_Regionalonly(self, cluster_dir, optimal_k)
         if not utils.find('*_qp_Regionalonly_ANOM*.png', cluster_dir): visualization.print_quiver_ANOM_Regionalonly(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_90th_percentile_SGonly_ANOM_v1_*.png', cluster_dir): visualization.print_rf_90th_percentile_SGonly_ANOM_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_rainday_gt1mm_SGonly_ANOM_v1_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_SGonly_ANOM_plots(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_heavy_gt50mm_SGonly_ANOM_v1_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_SGonly_ANOM_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_rainday_gt1mm_SGonly_ANOM_v3_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_SGonly_ANOM_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_heavy_gt50mm_SGonly_ANOM_v2_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_SGonly_ANOM_plots(self, cluster_dir, optimal_k)
         if not utils.find('*_RFplot_rainday_gt1mm_ANOM_v1_*.png', cluster_dir): visualization.print_rf_rainday_gt1mm_ANOM_plots(self, cluster_dir, optimal_k)
 
-        if not utils.find('*_RFplot_heavy_gt50mm_ANOM_v1_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_ANOM_plots(self, cluster_dir, optimal_k)
-        if not too_large:
-            if not utils.find('*_RFplot_gt1mm_zscores_v1_*.png', cluster_dir): visualization.print_rf_gt1mm_zscore(self, cluster_dir, optimal_k)
-            if not utils.find('*_RFplot_heavy_gt50mm_zscores_v1_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_zscore(self, cluster_dir, optimal_k)
-            if not utils.find('*_RFplot_90th_percentile_ANOM_v1_*.png', cluster_dir): visualization.print_rf_90th_percentile_ANOM_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_heavy_gt50mm_ANOM_v2_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_ANOM_plots(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_rainday_gt1mm_zscores_v2_*.png', cluster_dir): visualization.print_rf_gt1mm_zscore(self, cluster_dir, optimal_k, 
+        too_large)
+        if not utils.find('*_RFplot_heavy_gt50mm_zscores_v2_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_zscore(self, cluster_dir, optimal_k, 
+        too_large)
+        if not utils.find('*_RFplot_rainday_gt1mm_SGonly_zscores_v2_*.png', cluster_dir): visualization.print_rf_heavy_gt1mm_SGonly_zscore(self, cluster_dir, optimal_k, 
+        too_large)
+        if not utils.find('*_RFplot_heavy_gt50mm_SGonly_zscores_v3_*.png', cluster_dir): visualization.print_rf_heavy_gt50mm_SGonly_zscore(self, cluster_dir, optimal_k, 
+        too_large)
+        if not utils.find('*_RFplot_90th_percentile_ANOM_v1_*.png', cluster_dir): visualization.print_rf_90th_percentile_ANOM_plots(self, cluster_dir, optimal_k, 
+        too_large)
         
-        if not utils.find('*_RFplot_rainday_gt1mm_Regionalonly_ANOM_v1_*.png', cluster_dir): visualization.print_rf_gt1mm_ANOM_Regionalonly(self, cluster_dir, optimal_k)
-        if not utils.find('*_RFplot_heavy_gt50mm_Regionalonly_ANOM_v1_*.png', cluster_dir): visualization.print_rf_gt50mm_ANOM_Regionalonly(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_rainday_gt1mm_Regionalonly_ANOM_v2_*.png', cluster_dir): visualization.print_rf_gt1mm_ANOM_Regionalonly(self, cluster_dir, optimal_k)
+        if not utils.find('*_RFplot_heavy_gt50mm_Regionalonly_ANOM_v2_*.png', cluster_dir): visualization.print_rf_gt50mm_ANOM_Regionalonly(self, cluster_dir, optimal_k)
         
 
         if not alpha:
@@ -471,10 +483,11 @@ class TopLevelModel:
             #     Individual test plots
             #     """
             #     if not utils.find(f"*RF_proportion_above_90thpercentile_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_above_90thpercentile(self, ind_cluster_plots_dir, clus)
-            #     if not utils.find(f"*RF_proportion_under_10thpercentile_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_under_10thpercentile(self, ind_cluster_plots_dir, clus)
+                # if not utils.find(f"*RF_proportion_under_10thpercentile_cluster_v2_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_under_10thpercentile(self, ind_cluster_plots_dir, clus)
             #     if not utils.find(f"*RF_proportion_above_fullmodel_mean_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_above_fullmodel_mean(self, ind_cluster_plots_dir, clus)
             #     if not utils.find(f"*RF_proportion_above_250mm_cluster_{int(clus+1)}.png", ind_cluster_plots_dir): visualization.print_ind_clus_proportion_above_250mm(self, ind_cluster_plots_dir, clus)
                 
+    
         print(
             f'Outputs are available @: \n{cluster_dir}\n\nThese are clustering results for domain {self.domain} ({self.period}), '\
             f'SOM-trained with hpparams {self.hyperparameters} \nand 2nd-level k-means clustered with k at {optimal_k}.')

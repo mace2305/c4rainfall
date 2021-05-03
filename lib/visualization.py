@@ -15,6 +15,7 @@ import seaborn as sns
 import pandas as pd
 import cartopy.crs as ccrs
 import matplotlib.colors as colors
+import dask.array as da                                                          
 from matplotlib import cm
 from mpl_toolkits.axes_grid1.inset_locator import inset_axes
 from cartopy import feature as cf
@@ -148,7 +149,7 @@ def print_som_scatterplot_with_dmap(model, dest):
     print(f"Time taken is {utils.time_since(som_splot_withdmap_starttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_prelim_SOMscplot_{gridsize}x{gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_prelim_SOMscplot_{gridsize}x{gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -204,7 +205,7 @@ def print_kmeans_scatterplot(model, dest, optimal_k):
     print(f"Time taken is {utils.time_since(start_kmeanscatter)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_kmeans-scplot_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_kmeans-scplot_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -244,7 +245,7 @@ def print_ar_plot(model, dest, optimal_k):
     print(f"Time taken is {utils.time_since(ARMonthFracstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_ARmonthfrac_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_ARmonthfrac_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -310,7 +311,7 @@ def print_ar_plot_granular(model, dest, optimal_k):
     plt.title('Greyed-out/non-colored regions indicate 0 occurances on such dates for these clusters.', y=1.04, fontsize=15)
 
     print(f"Time taken is {utils.time_since(ARMonthFracstarttime)}\n")
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_ARmonthfrac_granular_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_ARmonthfrac_granular_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -384,7 +385,7 @@ def print_rf_mean_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_mean_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_mean_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -462,7 +463,7 @@ def print_rf_max_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_max_v2_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_max_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -549,7 +550,7 @@ def print_rf_rainday_gt1mm_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_rainday_gt1mm_v3_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_v3_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -559,13 +560,19 @@ def print_rf_heavyrf_gt50mm_plots(model, dest, optimal_k):
 
     rfstarttime = timer(); print(f'{utils.time_now()} - Plotting proba of HEAVY (>50mm) rainfall now.\nTotal of {optimal_k} clusters, now printing cluster: ')
 
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-    labels_ar = utils.open_pickle(model.labels_ar_path)
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
     
+    # fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+        
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, 'rf_ds_lon')
+    rf_ds_lat = get_RF_calculations(model, 'rf_ds_lat')
     
+    levels1 = np.linspace(-20,20,81)
+    levels2 = [int(i) for i in np.arange(-19, 21, 2)]
+
     # pt1to3 = plt.cm.terrain(np.linspace(.7, .6, 3))
     # pt3to6 = plt.cm.gist_ncar(np.linspace(.4, 1, 5))
     # pt6to8 = plt.cm.ocean(np.linspace(.8, .4, 4))
@@ -586,11 +593,12 @@ def print_rf_heavyrf_gt50mm_plots(model, dest, optimal_k):
 
     fig.suptitle(f'Proportion of grid with >50 mm of rainfall (heavy rain), over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
     
-    for clus in range(len(np.unique(labels_ar))):
+    for clus in range(optimal_k):
         time.sleep(1); gc.collect()
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
-        ddata_pred_proba_morethan50mm = np.mean([data.isel(time=t).precipitationCal.T.values > 50 for t in range(data.time.size)], axis=0)
+        data = get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus=clus)
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).sel(
+        #     lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+        # ddata_pred_proba_morethan50mm = np.mean([data.isel(time=t).precipitationCal.T.values > 50 for t in range(data.time.size)], axis=0)
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -614,7 +622,8 @@ def print_rf_heavyrf_gt50mm_plots(model, dest, optimal_k):
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
         
-        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, ddata_pred_proba_morethan50mm, np.linspace(0,1,101), 
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, ddata_pred_proba_morethan50mm, 
+        np.linspace(0,1,101), 
         cmap=terrain_map, 
         extend='max')
 
@@ -633,7 +642,7 @@ def print_rf_heavyrf_gt50mm_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_heavy_gt50mm_v2_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -716,7 +725,7 @@ def print_rf_90th_percentile_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_90th_percentile_v2_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_90th_percentile_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -736,12 +745,14 @@ def print_quiver_plots(model, dest, optimal_k):
     area = (model.LON_E-model.LON_W)*(model.LAT_N-model.LAT_S)
     coastline_lw = .8
     minshaft=2; scale=33
-    if area > 3000: skip_interval=4
-    elif 2000 < area <= 3000: skip_interval=3
+    if area > 3000: skip_interval=4; coastline_lw=.4
+    elif 2000 < area <= 3000: skip_interval=3; coastline_lw=.6
     elif 500 < area <= 2000 : skip_interval=2; minshaft=3; scale=33
     else: skip_interval=1; minshaft=3; scale=33
+    # skip_interval = 1 #7 April: seems to be trouble reconciling regional + entire extent quivers
     lon_qp = model.X[::skip_interval].values
     lat_qp = model.Y[::skip_interval].values
+    # minshaft=.2; scale=250
 
 
     for idx, pressure in enumerate(model.uwnd_vwnd_pressure_lvls):
@@ -751,19 +762,27 @@ def print_quiver_plots(model, dest, optimal_k):
         for cluster in range(optimal_k):
             print(f"{utils.time_now()} - Cluster {cluster}: ")
             
+            # uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+            #     target_ds_withClusterLabels.cluster==cluster, drop=True).uwnd.mean(
+            #     "time")[::skip_interval, ::skip_interval].values
+
+            # vwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+            #     target_ds_withClusterLabels.cluster==cluster, drop=True).vwnd.mean(
+            #     "time")[::skip_interval, ::skip_interval].values
+            
             uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).uwnd.mean(
-                "time")[::skip_interval, ::skip_interval].values
+                "time").values
 
             vwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).vwnd.mean(
-                "time")[::skip_interval, ::skip_interval].values
+                "time").values
 
             ax_qp = fig.add_subplot(gs_qp[cluster], projection=ccrs.PlateCarree())
             ax_qp.xaxis.set_major_formatter(model.lon_formatter)
             ax_qp.yaxis.set_major_formatter(model.lat_formatter)
             ax_qp.set_facecolor('white')
-            ax_qp.add_feature(cf.LAND,facecolor='silver')
+            ax_qp.add_feature(cf.LAND,facecolor='white')
             ax_qp.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
 
             if cluster < model.grid_width: # top ticks    
@@ -783,17 +802,20 @@ def print_quiver_plots(model, dest, optimal_k):
             else: ax_qp.set_title(f"cluster no.{cluster+1}", loc='left')
             
             time.sleep(1); gc.collect()
-            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids); 
+            # wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids)
+            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids)[::skip_interval,::skip_interval]
             time.sleep(1); gc.collect()
-            u = uwnd_gridded_centroids/wndspd; 
-            v = vwnd_gridded_centroids/wndspd; 
+            # u = uwnd_gridded_centroids/wndspd; 
+            # v = vwnd_gridded_centroids/wndspd;
+            u = uwnd_gridded_centroids[::skip_interval,::skip_interval]/wndspd
+            v = vwnd_gridded_centroids[::skip_interval,::skip_interval]/wndspd
             spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,19), 
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
                                       alpha=1)
             Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=minshaft, scale=scale)  
             conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
             ax_qp.coastlines("50m", linewidth=coastline_lw, color='orangered')
-            ax_qp.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+            ax_qp.add_feature(cf.BORDERS, linewidth=.35, color='orangered', linestyle='dashed')
             ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
             time.sleep(1); gc.collect()
 
@@ -805,14 +827,14 @@ def print_quiver_plots(model, dest, optimal_k):
                 cbar_qp.ax.xaxis.set_ticks_position('top')
                 cbar_qp.ax.xaxis.set_label_position('top')
 
+
         print(f"=> Quiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp_v3-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.month_names_joined}_qp_v5-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
-        
     print(f"\n\nQuiver plotting took {utils.time_since(quiverstarttime)}.\n\n")
 
 
@@ -827,7 +849,7 @@ def print_quiver_ANOM_whole(model, dest, optimal_k):
     coastline_lw = .8
     minshaft=2; scale=33
     if area > 3000: skip_interval=4
-    elif 2000 < area <= 3000: skip_interval=3
+    elif 2000 < area <= 3000: skip_interval=3; coastline_lw=.6
     elif 500 < area <= 2000 : skip_interval=2; minshaft=3; scale=33
     else: skip_interval=1; minshaft=3; scale=33
     # lon_qp = model.X[::skip_interval].values
@@ -847,19 +869,29 @@ def print_quiver_ANOM_whole(model, dest, optimal_k):
         print(f'Currently on {pressure}hpa...')
         fig, gs_qp = create_multisubplot_axes(optimal_k)
 
-        uwnd_baseline = target_ds_withClusterLabels.sel(level=pressure).uwnd.mean("time")[::skip_interval, ::skip_interval].values
-        vwnd_baseline = target_ds_withClusterLabels.sel(level=pressure).vwnd.mean("time")[::skip_interval, ::skip_interval].values
+        # uwnd_baseline = target_ds_withClusterLabels.sel(level=pressure).uwnd.mean("time")[::skip_interval, ::skip_interval].values
+        # vwnd_baseline = target_ds_withClusterLabels.sel(level=pressure).vwnd.mean("time")[::skip_interval, ::skip_interval].values
+        uwnd_baseline = target_ds_withClusterLabels.sel(level=pressure).uwnd.mean("time").values
+        vwnd_baseline = target_ds_withClusterLabels.sel(level=pressure).vwnd.mean("time").values
 
         for cluster in range(optimal_k):
             print(f"{utils.time_now()} - Cluster {cluster}: ")
 
+            # uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+            #     target_ds_withClusterLabels.cluster==cluster, drop=True).uwnd.mean(
+            #     "time")[::skip_interval, ::skip_interval].values
+
+            # vwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+            #     target_ds_withClusterLabels.cluster==cluster, drop=True).vwnd.mean(
+            #     "time")[::skip_interval, ::skip_interval].values
+            
             uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).uwnd.mean(
-                "time")[::skip_interval, ::skip_interval].values
+                "time").values
 
             vwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).vwnd.mean(
-                "time")[::skip_interval, ::skip_interval].values
+                "time").values
 
             uwnd_mean = uwnd_gridded_centroids - uwnd_baseline
             vwnd_mean = vwnd_gridded_centroids - vwnd_baseline
@@ -890,15 +922,23 @@ def print_quiver_ANOM_whole(model, dest, optimal_k):
             time.sleep(1); gc.collect()
             wndspd = np.hypot(vwnd_mean,uwnd_mean);
 
+            # wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids)
+            # u = uwnd_gridded_centroids[::skip_interval,::skip_interval]/wndspd
+            # v = vwnd_gridded_centroids[::skip_interval,::skip_interval]/wndspd
             u = uwnd_mean/wndspd; 
             v = vwnd_mean/wndspd; 
+
+            wndspd = wndspd[::skip_interval,::skip_interval]
+            u = u[::skip_interval,::skip_interval]
+            v = v[::skip_interval,::skip_interval]
+
             spd_plot = ax_qp.contourf(lon, lat, wndspd, levels, 
                                       transform=ccrs.PlateCarree(), cmap='terrain_r', 
                                       alpha=1)
             Quiver = ax_qp.quiver(lon, lat, u, v, color='Black', minshaft=minshaft, scale=scale)  
             conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
             ax_qp.coastlines("50m", linewidth=coastline_lw, color='orangered')
-            ax_qp.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+            ax_qp.add_feature(cf.BORDERS, linewidth=.35, color='orangered', linestyle='dashed')
             ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
             time.sleep(1); gc.collect()
 
@@ -920,6 +960,118 @@ def print_quiver_ANOM_whole(model, dest, optimal_k):
         plt.close('all')
         
     print(f"\n\nQuiver ANOMALY plotting took {utils.time_since(quiverstarttime)}.\n\n")
+
+def print_quiver_plots_sgonly(model, dest, optimal_k):
+        
+    quiverstarttime = timer(); print(f"{utils.time_now()} - Drawing quiver sub-plots (sgonly) now...")
+
+    target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
+
+
+    w_lim_sg = 101
+    e_lim_sg = 107
+    s_lim_sg = -1
+    n_lim_sg = 4
+    target_ds_withClusterLabels = target_ds_withClusterLabels.sel(
+        lon=slice(w_lim_sg, e_lim_sg),lat=slice(n_lim_sg, s_lim_sg))
+
+    # area = (model.LON_E-model.LON_W)*(model.LAT_N-model.LAT_S)
+    coastline_lw = 1
+    # minshaft=2; scale=33
+    # if area > 3000: skip_interval=4
+    # elif 2000 < area <= 3000: skip_interval=3
+    # elif 500 < area <= 2000 : skip_interval=2; minshaft=3; scale=33
+    # else: skip_interval=1; minshaft=3; scale=33
+    skip_interval=1; minshaft=3; scale=10
+    lon_qp = target_ds_withClusterLabels.lon[::skip_interval].values
+    lat_qp = target_ds_withClusterLabels.lat[::skip_interval].values
+
+    # w = lon_qp.min()
+    # e = lon_qp.max()
+    # s = lat_qp.min()
+    # n = lat_qp.max()
+    w = 102
+    e = 105
+    s = 0.5
+    n = 2
+
+    for idx, pressure in enumerate(model.uwnd_vwnd_pressure_lvls):
+        print(f'Currently on {pressure}hpa...')
+        fig, gs_qp = create_multisubplot_axes(optimal_k)
+
+        for cluster in range(optimal_k):
+            print(f"{utils.time_now()} - Cluster {cluster}: ")
+            
+            uwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+                target_ds_withClusterLabels.cluster==cluster, drop=True).uwnd.mean(
+                "time")[::skip_interval, ::skip_interval].values
+
+            vwnd_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+                target_ds_withClusterLabels.cluster==cluster, drop=True).vwnd.mean(
+                "time")[::skip_interval, ::skip_interval].values
+
+            ax_qp = fig.add_subplot(gs_qp[cluster], projection=ccrs.PlateCarree())
+            ax_qp.xaxis.set_major_formatter(model.lon_formatter)
+            ax_qp.yaxis.set_major_formatter(model.lat_formatter)
+            ax_qp.set_facecolor('white')
+            ax_qp.add_feature(cf.LAND,facecolor='silver')
+            # ax_qp.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+            # ax_qp.set_extent([103, 105, 0.5, 2])
+            ax_qp.set_extent([w, e, s, n])
+
+
+            if cluster < model.grid_width: # top ticks    
+                ax_qp.set_xticks([w,e], crs=ccrs.PlateCarree())
+                ax_qp.set_xticklabels([w,e], rotation=55)
+                ax_qp.xaxis.tick_top()
+            else: ax_qp.set_xticks([])
+
+            if cluster % model.grid_width == model.grid_width-1: # right-side ticks
+                ax_qp.set_yticks([s,n], crs=ccrs.PlateCarree())
+                ax_qp.yaxis.set_label_position("right")
+                ax_qp.yaxis.tick_right()
+            else: ax_qp.set_yticks([])
+
+            if cluster == 0: # title
+                ax_qp.set_title(f"Pressure: {pressure} hpa,\ncluster no.{cluster+1}", loc='left')
+            else: ax_qp.set_title(f"cluster no.{cluster+1}", loc='left')
+            
+            time.sleep(1); gc.collect()
+            wndspd = np.hypot(vwnd_gridded_centroids,uwnd_gridded_centroids);
+            time.sleep(1); gc.collect()
+            u = uwnd_gridded_centroids/wndspd; 
+            v = vwnd_gridded_centroids/wndspd; 
+            spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,19), 
+                                      transform=ccrs.PlateCarree(), cmap='terrain_r', 
+                                      alpha=1)
+            Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=minshaft, scale=scale)  
+            conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
+            ax_qp.coastlines("50m", linewidth=coastline_lw, color='aqua')
+            ax_qp.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+            ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
+            time.sleep(1); gc.collect()
+
+            if cluster == model.cbar_pos: # cbar
+                axins_qp = inset_axes(ax_qp, width='100%', height='100%',
+                                      loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
+                                      bbox_transform=ax_qp.transAxes)
+                cbar_qp = fig.colorbar(spd_plot, cax=axins_qp, label='Quiver (m/s)', orientation='horizontal',pad=0.01)
+                cbar_qp.ax.xaxis.set_ticks_position('top')
+                cbar_qp.ax.xaxis.set_label_position('top')
+
+                
+
+        print(f"=> Quiver plots plotted for {pressure}hpa")  
+
+        fig.subplots_adjust(wspace=0.05,hspace=0.3)
+        fn = f"{dest}/{model.month_names_joined}_qp_sgonly-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+        print(f'file saved @:\n{fn}')
+        plt.close('all')
+        
+    print(f"\n\nQuiver plotting took {utils.time_since(quiverstarttime)}.\n\n")
+
 
 def print_rhum_plots(model, dest, optimal_k):
     
@@ -981,7 +1133,88 @@ def print_rhum_plots(model, dest, optimal_k):
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum_v3-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.month_names_joined}_rhum_v3-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+        print(f'file saved @:\n{fn}')
+        plt.close('all')
+
+    print(f"\n\nTime taken to plot RHUM: {utils.time_since(rhumstarttime)}.")
+
+
+def print_rhum_plots_sgonly(model, dest, optimal_k):
+    
+    rhumstarttime = timer(); print(f"{utils.time_now()} - Finishing RHUM plots...")
+
+    target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
+
+    w_lim_sg = 101
+    e_lim_sg = 107
+    s_lim_sg = -1
+    n_lim_sg = 4
+    target_ds_withClusterLabels = target_ds_withClusterLabels.sel(
+        lon=slice(w_lim_sg, e_lim_sg),lat=slice(n_lim_sg, s_lim_sg))
+
+    w = 102
+    e = 105
+    s = 0.5
+    n = 2
+
+    for idx, pressure in enumerate(model.rhum_pressure_levels):
+        fig, gs_rhum = create_multisubplot_axes(optimal_k)
+
+        for cluster in range(optimal_k):
+            rhum_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
+                target_ds_withClusterLabels.cluster==cluster, drop=True).rhum.mean("time")
+
+            ax_rhum = fig.add_subplot(gs_rhum[cluster], projection=ccrs.PlateCarree())
+            ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
+            ax_rhum.yaxis.set_major_formatter(model.lat_formatter)
+            ax_rhum.coastlines("50m", linewidth=.7, color='w')
+            ax_rhum.add_feature(cf.BORDERS, linewidth=.5, color='w', linestyle='dashed')
+            ax_rhum.set_facecolor('white')
+            ax_rhum.add_feature(cf.LAND, facecolor='k')
+            # ax_rhum.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+            ax_rhum.set_extent([w, e, s, n])
+
+            if cluster < model.grid_width: # top ticks     
+                ax_rhum.set_xticks([w,e], crs=ccrs.PlateCarree())
+                ax_rhum.set_xticklabels([w,e], rotation=55)
+                ax_rhum.xaxis.tick_top()
+            else: ax_rhum.set_xticks([])
+
+            if cluster % model.grid_width == model.grid_width-1: # right-side ticks
+                ax_rhum.set_yticks([s,n], crs=ccrs.PlateCarree())
+                ax_rhum.yaxis.set_label_position("right")
+                ax_rhum.yaxis.tick_right()
+            else: ax_rhum.set_yticks([])
+
+            if cluster == 0: # title
+                ax_rhum.set_title(f"Pressure: {pressure} hpa,\ncluster no.{cluster+1}", loc='left')
+            else: ax_rhum.set_title(f"cluster no.{cluster+1}", loc='left')
+
+            normi = mpl.colors.Normalize(vmin=model.min_maxes['rhum_min'], vmax=model.min_maxes['rhum_max']);
+            Rhum = ax_rhum.contourf(target_ds_withClusterLabels.lon, target_ds_withClusterLabels.lat, rhum_gridded_centroids,
+                                    np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),
+                                    norm=normi, cmap='jet_r')
+            conts = ax_rhum.contour(Rhum, 'k:', linewidths=.5)
+            ax_rhum.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=10)
+
+
+            if cluster == model.cbar_pos: # cbar
+                axins_rhum = inset_axes(ax_rhum, width='100%', height='100%', 
+                                        loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1), 
+                                        bbox_transform=ax_rhum.transAxes);
+                cbar_rhum = fig.colorbar(Rhum, cax=axins_rhum, label='Relative humidity (%)', orientation='horizontal', pad=0.01);
+                cbar_rhum.ax.xaxis.set_ticks_position('top')
+                cbar_rhum.ax.xaxis.set_label_position('top')
+
+            print(f"{utils.time_now()} - clus {cluster}")
+
+        print(f"==> Rhum plots plotted for {pressure}hpa")
+
+        fig.subplots_adjust(wspace=0.05,hspace=0.3)
+        fn = f"{dest}/{model.month_names_joined}_rhum_sgonly-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
@@ -991,7 +1224,7 @@ def print_rhum_plots(model, dest, optimal_k):
 
 def print_RHUM_ANOM_whole(model, dest, optimal_k):
 
-    rhumstarttime = timer(); print(f"{utils.time_now()} - Finishing RHUM ANOMALY plots (regional)...")
+    rhumstarttime = timer(); print(f"{utils.time_now()} - Finishing RHUM ANOMALY plots (whole)...")
 
     target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
     target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
@@ -1006,16 +1239,25 @@ def print_RHUM_ANOM_whole(model, dest, optimal_k):
     levels = [int(i) for i in np.linspace(-40,40,24)]
 
     for idx, pressure in enumerate(model.rhum_pressure_levels):
+        pressure=700
         fig, gs_rhum = create_multisubplot_axes(optimal_k)
 
         baseline = target_ds_withClusterLabels.sel(level=pressure).rhum.mean("time")
 
         for cluster in range(optimal_k):
+            # cluster=4
             print(f"{utils.time_now()} - clus {cluster}")
             rhum_gridded_centroids = target_ds_withClusterLabels.sel(level=pressure).where(
                 target_ds_withClusterLabels.cluster==cluster, drop=True).rhum.mean("time")
 
-            mean = rhum_gridded_centroids-baseline
+            # print(baseline.values)
+            # print(rhum_gridded_centroids.values)
+            mean = baseline-rhum_gridded_centroids
+            # a = mean.values
+            # print(a)
+            # print(a.max())
+            # print(a.min())
+            # sys.exit()
 
             ax_rhum = fig.add_subplot(gs_rhum[cluster], projection=ccrs.PlateCarree())
             ax_rhum.xaxis.set_major_formatter(model.lon_formatter)
@@ -1044,7 +1286,7 @@ def print_RHUM_ANOM_whole(model, dest, optimal_k):
 
             Rhum = ax_rhum.contourf(lon, lat, mean,
                                     # np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),
-                                    levels, cmap='jet_r', extend='both')
+                                    levels, cmap='BrBG', extend='both')
             conts = ax_rhum.contour(Rhum, 'k:', linewidths=.5)
             ax_rhum.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=10)
 
@@ -1058,13 +1300,16 @@ def print_RHUM_ANOM_whole(model, dest, optimal_k):
                 cbar_rhum.ax.xaxis.set_ticks_position('top')
                 cbar_rhum.ax.xaxis.set_label_position('top')
 
+            # break
+
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.month_names_joined}_rhum_v1_ANOM-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.month_names_joined}_rhum_v5_ANOM-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
+        sys.exit()
 
     print(f"\n\nTime taken to plot RHUM ANOMALIES for whole: {utils.time_since(rhumstarttime)}.")
 
@@ -1137,20 +1382,30 @@ def print_ind_clus_proportion_under_10thpercentile(model, dest, clus):
 
     print(f'{utils.time_now()} - Generating <10th percentile RF plot for clus: {clus+1}')
 
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-    coarsened_clus_rf_ds = RFprec_to_ClusterLabels_dataset.precipitationCal.where(
-        RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).coarsen(lat=5, lon=5, boundary='trim').max()
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    # coarsened_clus_rf_ds = RFprec_to_ClusterLabels_dataset.precipitationCal.where(
+    #     RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).coarsen(lat=5, lon=5, boundary='trim').max()
 
-    RFprec_to_ClusterLabels_dataset_vals = utils.open_pickle(f'{model.full_rf_5Xcoarsened_vals_path}')
-    percen10 = np.percentile(RFprec_to_ClusterLabels_dataset_vals, 10, axis=0)
+    # RFprec_to_ClusterLabels_dataset_vals = utils.open_pickle(f'{model.full_rf_5Xcoarsened_vals_path}')
+    # percen10 = np.percentile(RFprec_to_ClusterLabels_dataset_vals, 10, axis=0)
 
-    compared_clus_to_10percent = (coarsened_clus_rf_ds < percen10).values
+    mean = get_RF_calculations(model, criteria='10perc', clus=clus)
+    baseline = get_RF_calculations(model, criteria='10perc', calculation='10perc', clus="whole")
+
+    print(mean)
+    print(baseline)
+    compared_clus_to_10percent = mean < baseline
     time_averaged_gridwise_RF_of_cluster_compared_to_10pcent = np.mean(compared_clus_to_10percent, axis=0)*100
 
-    rf_ds_lon = coarsened_clus_rf_ds.lon
-    rf_ds_lat = coarsened_clus_rf_ds.lat
+    # compared_clus_to_10percent = (coarsened_clus_rf_ds < percen10).values
+    # time_averaged_gridwise_RF_of_cluster_compared_to_10pcent = np.mean(compared_clus_to_10percent, axis=0)*100
 
-    fig = plt.Figure(figsize=(12,15))
+    # rf_ds_lon = coarsened_clus_rf_ds.lon
+    # rf_ds_lat = coarsened_clus_rf_ds.lat
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
+
+    fig = plt.Figure(figsize=(10,10))
     ax = fig.add_subplot(111, projection=ccrs.PlateCarree())
 
     fig.suptitle(f"Proportion of cluster {int(clus+1)} grid members receiving less RF \nthan the 10th percentile value of corresponding grid within full model",
@@ -1190,7 +1445,7 @@ def print_ind_clus_proportion_under_10thpercentile(model, dest, clus):
     ax.yaxis.tick_right()
     ax.set_ylabel('')
 
-    fn = f"{dest}/RF_proportion_under_10thpercentile_cluster_{int(clus+1)}.png"
+    fn = f"{dest}/RF_proportion_under_10thpercentile_cluster_v2_{int(clus+1)}.png"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -1433,7 +1688,7 @@ def print_rf_rainday_gt1mm_ANOM_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_rainday_gt1mm_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_ANOM_v1_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -1447,28 +1702,40 @@ def print_rf_heavy_gt50mm_ANOM_plots(model, dest, optimal_k):
     rfstarttime = timer(); print(f'{utils.time_now()} - Plotting ANOM (v2) proba of >50mm rainfall now.\nTotal of {optimal_k} clusters, now printing cluster: ')
 
     # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    rf_ds_lon = get_RF_calculations(model, 'rf_ds_lon')
+    rf_ds_lat = get_RF_calculations(model, 'rf_ds_lat')
+    baseline = (get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus="whole"))
+    if baseline.max() > 100:
+        baseline = baseline/100
+    
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+    #         lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
     
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
 
-    baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 50, axis=0) * 100
+    # baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 50, axis=0) * 100
     
     all_colors = np.vstack(plt.cm.BrBG(np.linspace(0,1,11)))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
     fig.suptitle(f'Anomaly for rainfall above 50mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
     
-    levels = [int(i) for i in np.linspace(-20,20,21)]
+    levels1 = np.linspace(-20,20,81)
+    levels2 = [int(i) for i in np.arange(-20, 21, 5)]
 
     for clus in range(optimal_k):
         print(f'\n{utils.time_now()}: {clus}.. ');
         time.sleep(1); gc.collect()
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal
-        mean = np.mean(data > 50, axis=0)*100
-        mean = mean-baseline
+        data = get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus=clus)
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal
+        # mean = np.mean(data > 50, axis=0)*100
+        mean = data-baseline
+        # print(mean)
+        # print(mean.min())
+        # print(mean.max())
+        # sys.exit()
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -1496,11 +1763,16 @@ def print_rf_heavy_gt50mm_ANOM_plots(model, dest, optimal_k):
         
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, mean.T, 
         # np.linspace(0,100,11), 
-        levels,
+        levels1,
         cmap=terrain_map, 
         extend='both')
+
         conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
-        ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
+
+        ax_rf_plot.clabel(conts, 
+        # conts.levels, 
+        np.concatenate([levels2[:4],levels2[5:]]),
+        colors='grey', inline=True, fmt='%1.f', fontsize=7)
 
         ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
 
@@ -1512,26 +1784,157 @@ def print_rf_heavy_gt50mm_ANOM_plots(model, dest, optimal_k):
                                   bbox_transform=ax_rf_plot.transAxes)
             cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >50 mm rainfall (%) relative to whole dataset baseline', orientation='horizontal', pad=0.01, 
             # ticks=np.arange(0,100,10)
-            ticks=levels
+            ticks=levels2
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
-
+        
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_ANOM_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
 
+def acquire_rf_subset(model, criteria, clus, location_tag):
+    """
+    This function discerns if the dataset to be retrieved is from the whole dataset, 
+    or from a particular cluster. If it is the former, it will be pickled so retrieval will be faster
+    and no need to store in-memory.
+    """
+    print(f"{utils.time_now()} - Acquiring dataset for {criteria}{location_tag}...")
 
-def print_rf_heavy_gt50mm_zscore(model, dest, optimal_k):
+    if clus == "whole":
+        RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+        lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    else:
+        RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+        lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+        RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.where(
+            RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True)
+    if location_tag == '_sgonly':
+        w_lim_sg = 103.5
+        e_lim_sg = 104.055
+        s_lim_sg = 1.1
+        n_lim_sg = 1.55
+        RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(
+            lon=slice(w_lim_sg, e_lim_sg),lat=slice(s_lim_sg, n_lim_sg))
+    elif location_tag == '_regionalonly':
+        w_lim_regional = 96
+        e_lim_regional = 111.6
+        s_lim_regional = -4.5
+        n_lim_regional = 8
+        RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(
+            lon=slice(w_lim_regional, e_lim_regional),lat=slice(s_lim_regional, n_lim_regional))
+        
+
+    if criteria == 'gt1mm': 
+        data = (RFprec_to_ClusterLabels_dataset.precipitationCal > 1).values
+    elif criteria == 'gt50mm':
+        data = (RFprec_to_ClusterLabels_dataset.precipitationCal > 50).values
+    elif criteria in ['90perc', '10perc'] :
+        return RFprec_to_ClusterLabels_dataset.precipitationCal
+
+        # # for both baseline + cluster-level, this is sufficient for Dask to work on
+        # data = RFprec_to_ClusterLabels_dataset.precipitationCal.values
+
+        # data = np.percentile(RFprec_to_ClusterLabels_dataset.precipitationCal, 90, axis=0) # breaks for area >2000
+    elif criteria == 'rf_ds_lon':
+        data = RFprec_to_ClusterLabels_dataset.lon
+    elif criteria == 'rf_ds_lat':
+        data = RFprec_to_ClusterLabels_dataset.lat
+
+    # # i.e. its cluster-wise retrieval, no need to pickle as these will never be used again!
+    # # the z-scores are calculated based off whole-dataset std-dev and mean, not the cluster-wise dataset
+    # if clus == "whole":
+    #     time.sleep(1); gc.collect()
+    #     return utils.to_pickle(f"{criteria}_serialized_{clus}", data, model.cluster_dir)
+    # else:
+    #     return data 
+
+    return data
+
+
+
+def get_RF_calculations(model, criteria, calculation=None, clus="whole", too_large=None,
+sgonly=False, regionalonly=False):
     """
-    Unlike gt1mm, gt50mm is only in very small percentages, hence it's useful to bypass the issue of the 0-1% range
-    and simply use population mean and std to calculate z-scores of each cluster.
+    BREAK DOWN DATA FROM CALCULATION!
+    or really just go pickle
     """
+    print(f'{utils.time_now()} - Criteria: {criteria}, calculation: {calculation}, clus: {clus}, sgonly: {sgonly}, regionalonly: {regionalonly}')
+
+    # pickling the entire dataset which is what z-score will be calculated against
+    if sgonly: location_tag = '_sgonly'
+    elif regionalonly: location_tag = '_regionalonly'
+    else: location_tag = ''
+    found = utils.find(f"{criteria}_serialized_{clus}{location_tag}.pkl", model.cluster_dir)
+    if found: found = found[0]
+    else: 
+        # note: why each model is pickled even as a whole or even in its cluster
+        # is that it relieves holding in-memory these arrays
+        # later, these pickles are simply opened lazily when needed
+        print(f'"{criteria}_serialized_{clus}{location_tag}.pkl" not found.')
+        found = acquire_rf_subset(model, criteria, clus, location_tag)
+        utils.to_pickle(f"{criteria}_serialized_{clus}{location_tag}", found, model.cluster_dir)
+
+    if type(found) == str: 
+        pkl = utils.open_pickle(found)    
+    else: pkl = found # for when cluster-wise, this is not a path but the actual numpy array
+
+    if calculation == "mean" and len(pkl.shape) >2:
+        daskarr = da.from_array(pkl, chunks=(500, pkl.shape[1], pkl.shape[2]))  
+        return daskarr.mean(axis=0).compute() *100
+    elif calculation == "std" and len(pkl.shape) >2:
+        daskarr = da.from_array(pkl, chunks=(500, pkl.shape[1], pkl.shape[2]))  
+        return daskarr.std(axis=0).compute() *100         
+    elif calculation == "90perc" and len(pkl.shape) >2:
+        print('got back')
+        if too_large:
+            pkl = pkl.chunk({'time':-1, 'lon':2, 'lat':2})
+            return pkl.quantile(0.9, dim='time').persist().values
+        else:
+            return np.percentile(pkl.values, 90, axis=0)
+    elif calculation == "10perc" and len(pkl.shape) >2:
+        print('got back')
+        if too_large:
+            pkl = pkl.chunk({'time':-1, 'lon':2, 'lat':2})
+            return pkl.quantile(0.1, dim='time').persist().values
+        else:
+            return np.percentile(pkl.values, 10, axis=0)
+
+        # da.map_blocks(np.percentile, pkl, axis=0, q=q)
+
+        # daskarr = da.from_array(pkl, chunks=(500, pkl.shape[1], pkl.shape[2]))  
+        # print('yer')
+        # percentile_rank_lst = []
+        # for p in range(pkl.shape[1]):
+        #     for k in range(pkl.shape[2]):
+        #         pkl_ = pkl[:, p, k]
+        #         percentile_rank_lst.append(np.percentile(pkl_, 90))
+
+        # percentile_rank_lst = []
+        # for p in range(pkl.shape[1]):
+        #     for k in range(pkl.shape[2]):
+        #         pkl_ = pkl[:, p, k]
+        #         percentile_rank_lst.append(np.percentile(pkl_, 90))
+
+        # daskarr = da.from_array(pkl, chunks=(500, pkl.shape[1], pkl.shape[2]))  
+        # return da.percentile(pkl, 90).compute()
+        # return np.array(percentile_rank_lst).reshape(pkl.shape[1], pkl.shape[2])
+
+    else:# e.g. rf_ds_lon has None as <calculation>
+        return pkl
+
+
+def print_rf_gt1mm_zscore(model, dest, optimal_k, too_large):
+    """
+    Adopting the zscore plot from gt50mm for gt1mm
+    """
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting zscores of >1mm rainfall now.\nTotal of {optimal_k} clusters.')
+
     two58_to_196 = plt.cm.gist_ncar(np.linspace(.75, .8, 3))
     one96_to_0 = plt.cm.PuOr(np.linspace(0, 0.5, 4))
     zero_to_196 = plt.cm.twilight(np.linspace(0, .4, 4))
@@ -1542,26 +1945,171 @@ def print_rf_heavy_gt50mm_zscore(model, dest, optimal_k):
     levels=np.linspace(-3, 3, 39)
     ticks= [-2.58, -1.96, -1.65, -.67, .67, 1.65, 1.96, 2.58]
 
-    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting zscores of >50mm rainfall now.\nTotal of {optimal_k} clusters, now printing cluster: ')
-
-    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    # if too_large:
+    #     print('Its too large! Doing longer calculations to compensate...')
+    #     std = get_RF_calculations(model, criteria="gt1mm", calculation="std")
+    #     mean = get_RF_calculations(model, criteria="gt1mm", calculation="mean")
+    #     rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    #     rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
+    # else:
+    #     RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+    #             lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    #     whole_dataset = (RFprec_to_ClusterLabels_dataset.precipitationCal > 1).values
+    #     std = np.std(whole_dataset, axis=0)
+    #     mean = np.mean(whole_dataset, axis=0)
+    #     rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    #     rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    std = get_RF_calculations(model, criteria="gt1mm", calculation="std")
+    mean = get_RF_calculations(model, criteria="gt1mm", calculation="mean")
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
     
+    
+    # if not too_large:
+    #     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    # else:
+    #     fig = plt.Figure(figsize=(10,10))
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
 
-    fig.suptitle(f'Z-scores for rainfall above 50mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E. '\
-                f"Contour lines are drawn to indicate:\n-0.67<=Z<=0.67 == 50%, -1.65<=Z<=1.65 == 90%\n-1.96<=Z<=1.96 == 95%, -2.58<=Z<=2.58 == 99%", fontweight='bold')
+    fig.suptitle(f'Z-scores for rainfall above 1mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E. '\
+                f"Contour lines (in red) are drawn to indicate:\n-0.67<=Z<=0.67 == 50%, -1.65<=Z<=1.65 == 90%\n-1.96<=Z<=1.96 == 95%, -2.58<=Z<=2.58 == 99%", fontweight='bold')
 
-    whole_dataset = (RFprec_to_ClusterLabels_dataset.precipitationCal > 50).values
-    std = np.std(whole_dataset, axis=0)
-    mean = np.mean(whole_dataset, axis=0)
 
     for clus in range(optimal_k):
-        clus_dataset = (RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal > 50).values
-        clus_proba_gt50mm = np.mean(clus_dataset, axis=0)
+        print(f'{utils.time_now()} - Plotting for cluster {clus+1}')
+        # if too_large:
+        #     print(f'Doing the longform calcs for {clus+1}...')
+        #     clus_proba_gt1mm = get_RF_calculations(model, criteria="gt1mm", calculation="mean", clus=clus)
+        # else:
+        #     clus_dataset = (RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal > 1).values
+        #     clus_proba_gt1mm = np.mean(clus_dataset, axis=0)
+        clus_proba_gt1mm = get_RF_calculations(model, criteria="gt1mm", calculation="mean", clus=clus)
+        zscore = ((clus_proba_gt1mm-mean)/std)
+        zscore = np.nan_to_num(zscore)
+
+        # if too_large:
+        #     ax_rf_plot = fig.add_subplot(111, projection=ccrs.PlateCarree())
+        # else:
+        #     ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
+        ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
+        ax_rf_plot.set_title(f"Cluster {clus+1}")
+        ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
+        ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
+        ax_rf_plot.set_facecolor('w')
+        ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+        ax_rf_plot.coastlines("50m", linewidth=.7, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+
+        if too_large or not too_large and clus < model.grid_width: # top ticks  
+            ax_rf_plot.set_xticks([np.round(i,0) for i in np.linspace(model.LON_W,model.LON_E,9)], crs=ccrs.PlateCarree())
+            #ax_rf_plot.set_xticklabels([int(i) for i in np.linspace(model.LON_W,model.LON_E,10)], rotation=55)
+            ax_rf_plot.xaxis.tick_top()
+        else: ax_rf_plot.set_xticks([])
+
+        if too_large or not too_large and clus % model.grid_width == model.grid_width - 1: # right-side ticks
+            ax_rf_plot.set_yticks([int(i) for i in np.linspace(model.LAT_S,model.LAT_N,10)], crs=ccrs.PlateCarree())
+            ax_rf_plot.yaxis.set_label_position("right")
+            ax_rf_plot.yaxis.tick_right()
+        else: ax_rf_plot.set_yticks([])
+        
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, zscore.T, 
+        levels,
+        cmap=terrain_map, 
+        extend='both')
+        conts = ax_rf_plot.contour(RF, linewidths=0.15,
+                                levels=ticks,
+                                colors=('r',),linestyles=('-.',))
+        ax_rf_plot.clabel(conts, conts.levels, colors='k', 
+                        inline=True, fmt='%1.2f', fontsize=10)
+                        
+        # if not too_large and clus == model.cbar_pos: # cbar
+        #     axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
+        #                         loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
+        #                         bbox_transform=ax_rf_plot.transAxes)
+        #     cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], label='Zscore compared to baseline',
+        #                         orientation='horizontal', pad=0.01, 
+        #     )
+        #     cbar_rf.ax.xaxis.set_ticks_position('top')
+        #     cbar_rf.ax.xaxis.set_label_position('top')
+        # elif too_large:
+        #     cbar_rf = fig.colorbar(RF, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], label='Zscore compared to baseline',
+        #                         orientation='horizontal', pad=0.01, 
+        #     )
+
+        if clus == model.cbar_pos: # cbar
+            axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
+                                loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
+                                bbox_transform=ax_rf_plot.transAxes)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], label='Zscore compared to baseline',
+                                orientation='horizontal', pad=0.01, 
+            )
+            cbar_rf.ax.xaxis.set_ticks_position('top')
+            cbar_rf.ax.xaxis.set_label_position('top')
+        #     fig.subplots_adjust(wspace=0.05,hspace=0.3)
+        #     fn = f"{dest}/{model.month_names_joined}_RFplot_gt1mm_zscores_v1_cluster_{clus}_{model.gridsize}x{model.gridsize}"
+        #     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+        #     print(f'file saved @:\n{fn}')
+        #     plt.close('all')
+
+
+    # if not too_large:
+    #     fig.subplots_adjust(wspace=0.05,hspace=0.3)
+    #     fn = f"{dest}/{model.month_names_joined}_RFplot_gt1mm_zscores_v1_{model.gridsize}x{model.gridsize}"
+    #     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    #     print(f'file saved @:\n{fn}')
+    #     plt.close('all')
+
+    fig.subplots_adjust(wspace=0.05,hspace=0.3)
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_zscores_v2_{model.gridsize}x{model.gridsize}"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
+
+    print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
+    # sys.exit()
+
+
+
+def print_rf_heavy_gt50mm_zscore(model, dest, optimal_k, too_large):
+    """
+    Unlike gt1mm, gt50mm is only in very small percentages, hence it's useful to bypass the issue of the 0-1% range
+    and simply use population mean and std to calculate z-scores of each cluster.
+    """
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting zscores of >50mm rainfall now.\nTotal of {optimal_k} clusters.')
+
+    two58_to_196 = plt.cm.gist_ncar(np.linspace(.75, .8, 3))
+    one96_to_0 = plt.cm.PuOr(np.linspace(0, 0.5, 4))
+    zero_to_196 = plt.cm.twilight(np.linspace(0, .4, 4))
+    one96_to_258 = plt.cm.gist_rainbow(np.linspace(.55, .3, 3))
+    all_colors = np.vstack((two58_to_196, one96_to_0, zero_to_196, one96_to_258))
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    levels=np.linspace(-3, 3, 39)
+    ticks= [-2.58, -1.96, -1.65, -.67, .67, 1.65, 1.96, 2.58]
+
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+    #         lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    
+    fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
+
+    fig.suptitle(f'Z-scores for rainfall above 50mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E. '\
+                f"Contour lines (in red) are drawn to indicate:\n-0.67<=Z<=0.67 == 50%, -1.65<=Z<=1.65 == 90%\n-1.96<=Z<=1.96 == 95%, -2.58<=Z<=2.58 == 99%", fontweight='bold')
+
+    # whole_dataset = (RFprec_to_ClusterLabels_dataset.precipitationCal > 50).values
+    # std = np.std(whole_dataset, axis=0)
+    # mean = np.mean(whole_dataset, axis=0)
+    std = get_RF_calculations(model, criteria="gt50mm", calculation="std")
+    mean = get_RF_calculations(model, criteria="gt50mm", calculation="mean")
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
+
+    for clus in range(optimal_k):
+        print(f'{utils.time_now()} - Plotting cluster {clus+1} now')
+        # clus_dataset = (RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal > 50).values
+        # clus_proba_gt50mm = np.mean(clus_dataset, axis=0)
+        clus_proba_gt50mm = get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus=clus)
         zscore = ((clus_proba_gt50mm-mean)/std)
         zscore = np.nan_to_num(zscore)
 
@@ -1590,9 +2138,9 @@ def print_rf_heavy_gt50mm_zscore(model, dest, optimal_k):
         levels,
         cmap=terrain_map, 
         extend='both')
-        conts = ax_rf_plot.contour(RF, linewidths=0,
+        conts = ax_rf_plot.contour(RF, linewidths=0.15,
                                 levels=ticks,
-                                colors=('y',),linestyles=('-',))
+                                colors=('y',),linestyles=('-.',))
         ax_rf_plot.clabel(conts, conts.levels, colors='k', 
                         inline=True, fmt='%1.2f', fontsize=10)
                         
@@ -1600,8 +2148,9 @@ def print_rf_heavy_gt50mm_zscore(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                 loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                 bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], label='Zscore compared to baseline',
-                                orientation='horizontal', pad=0.01, 
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], 
+            label='Zscore compared to baseline',
+            orientation='horizontal', pad=0.01, 
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
@@ -1609,47 +2158,52 @@ def print_rf_heavy_gt50mm_zscore(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_zscores_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_zscores_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
+    # sys.exit()
 
 
-def print_rf_gt1mm_zscore(model, dest, optimal_k):
+def print_rf_heavy_gt50mm_SGonly_zscore(model, dest, optimal_k, too_large):
     """
-    Adopting the zscore plot from gt50mm for gt1mm
+    Added in 29 Mar
     """
-    two58_to_196 = plt.cm.gist_ncar(np.linspace(.75, .8, 3))
-    one96_to_0 = plt.cm.PuOr(np.linspace(0, 0.5, 4))
-    zero_to_196 = plt.cm.twilight(np.linspace(0, .4, 4))
-    one96_to_258 = plt.cm.gist_rainbow(np.linspace(.55, .3, 3))
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting zscores of >50mm rainfall now (SG-only).\nTotal of {optimal_k} clusters.')
+
+    two58_to_196 = plt.cm.gist_ncar(np.linspace(.75, .8, 30))
+    one96_to_0 = plt.cm.PuOr(np.linspace(0, 0.5, 40))
+    zero_to_196 = plt.cm.twilight(np.linspace(0, .4, 40))
+    one96_to_258 = plt.cm.gist_rainbow(np.linspace(.55, .3, 30))
     all_colors = np.vstack((two58_to_196, one96_to_0, zero_to_196, one96_to_258))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
-    levels=np.linspace(-3, 3, 39)
+    # levels=np.linspace(-3, 3, 69)
+    levels = [np.round(i, 2) for i in np.linspace(-3, 3, 215)]
     ticks= [-2.58, -1.96, -1.65, -.67, .67, 1.65, 1.96, 2.58]
-
-    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting zscores of >1mm rainfall now.\nTotal of {optimal_k} clusters, now printing cluster: ')
-
-    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    
     
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon", sgonly=True)
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat", sgonly=True)
 
-    fig.suptitle(f'Z-scores for rainfall above 1mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E. '\
-                f"Contour lines are drawn to indicate:\n-0.67<=Z<=0.67 == 50%, -1.65<=Z<=1.65 == 90%\n-1.96<=Z<=1.96 == 95%, -2.58<=Z<=2.58 == 99%", fontweight='bold')
+    fig.suptitle(f'Z-scores for rainfall above 50mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E. '\
+                f"Contour lines (in red) are drawn to indicate:\n-0.67<=Z<=0.67 == 50%, -1.65<=Z<=1.65 == 90%\n-1.96<=Z<=1.96 == 95%, -2.58<=Z<=2.58 == 99%", fontweight='bold')
 
-    whole_dataset = (RFprec_to_ClusterLabels_dataset.precipitationCal > 1).values
-    std = np.std(whole_dataset, axis=0)
-    mean = np.mean(whole_dataset, axis=0)
+    w = rf_ds_lon.min().values
+    e = rf_ds_lon.max().values
+    s = rf_ds_lat.min().values
+    n = rf_ds_lat.max().values
+
+
+    std = get_RF_calculations(model, criteria="gt50mm", calculation="std", sgonly=True)
+    mean = get_RF_calculations(model, criteria="gt50mm", calculation="mean", sgonly=True)
 
     for clus in range(optimal_k):
-        clus_dataset = (RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal > 1).values
-        clus_proba_gt1mm = np.mean(clus_dataset, axis=0)
-        zscore = ((clus_proba_gt1mm-mean)/std)
+        print(f'{utils.time_now()} - Plotting cluster {clus+1} now')
+        
+        clus_proba_gt50mm = get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus=clus, sgonly=True)
+        zscore = ((clus_proba_gt50mm-mean)/std)
         zscore = np.nan_to_num(zscore)
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -1657,19 +2211,21 @@ def print_rf_gt1mm_zscore(model, dest, optimal_k):
         ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
         ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
         ax_rf_plot.set_facecolor('w')
-        ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+        # ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+        ax_rf_plot.set_extent([w, e, s, n])
         ax_rf_plot.coastlines("50m", linewidth=.7, color='k')
         ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
 
         if clus < model.grid_width: # top ticks  
-            ax_rf_plot.set_xticks([np.round(i,0) for i in np.linspace(model.LON_W,model.LON_E,9)], crs=ccrs.PlateCarree())
-            
-            #ax_rf_plot.set_xticklabels([int(i) for i in np.linspace(model.LON_W,model.LON_E,10)], rotation=55)
+            ax_rf_plot.set_xticks([np.ceil(w), np.floor(e)], crs=ccrs.PlateCarree())
+            ax_rf_plot.set_xticklabels([np.ceil(w), np.floor(e)], rotation=55)
+            # ax_rf_plot.set_xticks([np.round(i,0) for i in np.linspace(model.LON_W,model.LON_E,9)], crs=ccrs.PlateCarree())
             ax_rf_plot.xaxis.tick_top()
         else: ax_rf_plot.set_xticks([])
 
         if clus % model.grid_width == model.grid_width - 1: # right-side ticks
-            ax_rf_plot.set_yticks([int(i) for i in np.linspace(model.LAT_S,model.LAT_N,10)], crs=ccrs.PlateCarree())
+            ax_rf_plot.set_yticks([s,n], crs=ccrs.PlateCarree())
+            # ax_rf_plot.set_yticks([int(i) for i in np.linspace(model.LAT_S,model.LAT_N,10)], crs=ccrs.PlateCarree())
             ax_rf_plot.yaxis.set_label_position("right")
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
@@ -1678,9 +2234,9 @@ def print_rf_gt1mm_zscore(model, dest, optimal_k):
         levels,
         cmap=terrain_map, 
         extend='both')
-        conts = ax_rf_plot.contour(RF, linewidths=0,
+        conts = ax_rf_plot.contour(RF, linewidths=0.15,
                                 levels=ticks,
-                                colors=('y',),linestyles=('-',))
+                                colors=('y',),linestyles=('-.',))
         ax_rf_plot.clabel(conts, conts.levels, colors='k', 
                         inline=True, fmt='%1.2f', fontsize=10)
                         
@@ -1688,8 +2244,103 @@ def print_rf_gt1mm_zscore(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                 loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                 bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], label='Zscore compared to baseline',
-                                orientation='horizontal', pad=0.01, 
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], 
+            label='Zscore compared to baseline',
+            orientation='horizontal', pad=0.01, 
+            )
+            cbar_rf.ax.xaxis.set_ticks_position('top')
+            cbar_rf.ax.xaxis.set_label_position('top')
+
+
+    print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
+
+    fig.subplots_adjust(wspace=0.05,hspace=0.3)
+    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_SGonly_zscores_v3_{model.gridsize}x{model.gridsize}"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
+    # sys.exit()
+
+
+def print_rf_heavy_gt1mm_SGonly_zscore(model, dest, optimal_k, too_large):
+    """
+    Added in 7 Apr
+    """
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting zscores of >1mm rainfall now (SG-only).\nTotal of {optimal_k} clusters.')
+
+    two58_to_196 = plt.cm.gist_ncar(np.linspace(.75, .8, 30))
+    one96_to_0 = plt.cm.PuOr(np.linspace(0, 0.5, 40))
+    zero_to_196 = plt.cm.twilight(np.linspace(0, .4, 40))
+    one96_to_258 = plt.cm.gist_rainbow(np.linspace(.55, .3, 30))
+    all_colors = np.vstack((two58_to_196, one96_to_0, zero_to_196, one96_to_258))
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    # levels=np.linspace(-3, 3, 69)
+    levels = [np.round(i, 2) for i in np.linspace(-3, 3, 215)]
+    ticks= [-2.58, -1.96, -1.65, -.67, .67, 1.65, 1.96, 2.58]
+    
+    
+    fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon", sgonly=True)
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat", sgonly=True)
+
+    fig.suptitle(f'Z-scores for rainfall above 1mm, over region: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E. '\
+                f"Contour lines (in red) are drawn to indicate:\n-0.67<=Z<=0.67 == 50%, -1.65<=Z<=1.65 == 90%\n-1.96<=Z<=1.96 == 95%, -2.58<=Z<=2.58 == 99%", fontweight='bold')
+
+    w = rf_ds_lon.min().values
+    e = rf_ds_lon.max().values
+    s = rf_ds_lat.min().values
+    n = rf_ds_lat.max().values
+
+
+    std = get_RF_calculations(model, criteria="gt1mm", calculation="std", sgonly=True)
+    mean = get_RF_calculations(model, criteria="gt1mm", calculation="mean", sgonly=True)
+
+    for clus in range(optimal_k):
+        print(f'{utils.time_now()} - Plotting cluster {clus+1} now')
+        
+        clus_proba_gt1mm = get_RF_calculations(model, criteria="gt1mm", calculation="mean", clus=clus, sgonly=True)
+        zscore = ((clus_proba_gt1mm-mean)/std)
+        zscore = np.nan_to_num(zscore)
+
+        ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
+        ax_rf_plot.set_title(f"Cluster {clus+1}")
+        ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
+        ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
+        ax_rf_plot.set_facecolor('w')
+        ax_rf_plot.set_extent([w, e, s, n])
+        ax_rf_plot.coastlines("50m", linewidth=.7, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+
+        if clus < model.grid_width: # top ticks  
+            ax_rf_plot.set_xticks([np.ceil(w), np.floor(e)], crs=ccrs.PlateCarree())
+            ax_rf_plot.set_xticklabels([np.ceil(w), np.floor(e)], rotation=55)
+            ax_rf_plot.xaxis.tick_top()
+        else: ax_rf_plot.set_xticks([])
+
+        if clus % model.grid_width == model.grid_width - 1: # right-side ticks
+            ax_rf_plot.set_yticks([s,n], crs=ccrs.PlateCarree())
+            ax_rf_plot.yaxis.set_label_position("right")
+            ax_rf_plot.yaxis.tick_right()
+        else: ax_rf_plot.set_yticks([])
+        
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, zscore.T, 
+        levels,
+        cmap=terrain_map, 
+        extend='both')
+        conts = ax_rf_plot.contour(RF, linewidths=0.15,
+                                levels=ticks,
+                                colors=('y',),linestyles=('-.',))
+        ax_rf_plot.clabel(conts, conts.levels, colors='k', 
+                        inline=True, fmt='%1.2f', fontsize=10)
+                        
+        if clus == model.cbar_pos: # cbar
+            axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
+                                loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
+                                bbox_transform=ax_rf_plot.transAxes)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], 
+            label='Zscore compared to baseline',
+            orientation='horizontal', pad=0.01, 
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
@@ -1697,29 +2348,39 @@ def print_rf_gt1mm_zscore(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.month_names_joined}_RFplot_gt1mm_zscores_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_SGonly_zscores_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
+    # sys.exit()  
 
 
-def print_rf_90th_percentile_ANOM_plots(model, dest, optimal_k):
+def print_rf_90th_percentile_ANOM_plots(model, dest, optimal_k, too_large):
     """
     i.e. taking the values but subtracting the baseline
     """
 
-    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting 90th-perc rainfall now.\nTotal of {optimal_k} clusters, now printing cluster: ')
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting 90th-perc rainfall now.\nTotal of {optimal_k} clusters.')
 
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+    #         lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
     
+    
+    # if not too_large:
+    #     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    # else:
+    #     fig = plt.Figure(figsize=(10,10))
+
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+        
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
     
-    baseline = get_baseline_90perc(RFprec_to_ClusterLabels_dataset)
-    #baseline = np.percentile(RFprec_to_ClusterLabels_dataset.precipitationCal, 90, axis=0)
+    # baseline = get_baseline_90perc(RFprec_to_ClusterLabels_dataset)
+    baseline = get_RF_calculations(model, criteria="90perc", calculation="90perc")
     print('Baseline calculated')
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
     
     all_colors = np.vstack(plt.cm.terrain_r(np.linspace(0,1,11)))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
@@ -1729,33 +2390,39 @@ def print_rf_90th_percentile_ANOM_plots(model, dest, optimal_k):
     levels = [int(i) for i in np.linspace(-100,100,21)]
 
     for clus in range(optimal_k):
-        print(f'\n{utils.time_now()}: Cluster {clus} now.. ')
+        print(f'{utils.time_now()}: Cluster {clus} now.. ')
         
         time.sleep(1); gc.collect()
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
-        mean = np.percentile(data, 90, axis=0)
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
+        # mean = np.percentile(data, 90, axis=0)
+        mean = get_RF_calculations(model, criteria="90perc", calculation="90perc", clus=clus, too_large=too_large)
         mean = mean-baseline
         time.sleep(1); gc.collect()
 
+        # if too_large:
+        #     ax_rf_plot = fig.add_subplot(111, projection=ccrs.PlateCarree())
+        # else:
+        #     ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
+        
         ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
         ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
         ax_rf_plot.set_facecolor('w')
         ax_rf_plot.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
         ax_rf_plot.coastlines("50m", linewidth=.7, color='k')
         ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+        ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
 
+        # if too_large or not too_large and clus < model.grid_width: # top ticks  
         if clus < model.grid_width: # top ticks  
             ax_rf_plot.set_xticks(np.linspace(model.LON_W,model.LON_E,10), crs=ccrs.PlateCarree())
             ax_rf_plot.set_xticklabels([int(i) for i in np.linspace(model.LON_W,model.LON_E,10)], rotation=55)
-            # ax_rf_plot.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
-            # ax_rf_plot.set_xticklabels([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], rotation=55)
             ax_rf_plot.xaxis.tick_top()
         else: ax_rf_plot.set_xticks([])
 
+        # if too_large or not too_large and clus % model.grid_width == model.grid_width - 1: # right-side ticks
         if clus % model.grid_width == model.grid_width - 1: # right-side ticks
             ax_rf_plot.set_yticks([int(i) for i in np.linspace(model.LAT_S,model.LAT_N,10)], crs=ccrs.PlateCarree())
-            # ax_rf_plot.set_yticklabels([int(i) for i in np.linspace(model.LAT_S,model.LAT_N,10)], rotation=55)
             ax_rf_plot.yaxis.set_label_position("right")
             ax_rf_plot.yaxis.tick_right()
         else: ax_rf_plot.set_yticks([])
@@ -1764,33 +2431,44 @@ def print_rf_90th_percentile_ANOM_plots(model, dest, optimal_k):
         levels,
         cmap=terrain_map, 
         extend='neither')
-        
-        print('Contourf plotted')
-        #conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
-        #ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
-
-        ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
-
-        time.sleep(1); gc.collect()
-
+        conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
+        ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
+                        
+        # if not too_large and clus == model.cbar_pos: # cbar
         if clus == model.cbar_pos: # cbar
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
-                                  loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
-                                  bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Anomaly of 90th percentile RF (in mm) relative to baseline.', orientation='horizontal', pad=0.01, 
-            # ticks=np.arange(0,100,10)
-            ticks=levels
-            )
+                                loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
+                                bbox_transform=ax_rf_plot.transAxes)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, ticks=levels, 
+            label='Anomaly of 90th percentile RF (in mm) relative to baseline.', orientation='horizontal', pad=0.01)
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
+        # elif too_large:
+        #     cbar_rf = fig.colorbar(RF, ticks=[-2.58, -1.96, -1.65, -.67, 0, .67, 1.65, 1.96, 2.58], 
+        #     label='Anomaly of 90th percentile RF (in mm) relative to baseline.', orientation='horizontal', pad=0.01)
 
-    print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
+        #     fig.subplots_adjust(wspace=0.05,hspace=0.3)
+        #     fn = f"{dest}/{model.month_names_joined}_RFplot_90th_percentile_ANOM_v1_cluster_{clus}_{model.gridsize}x{model.gridsize}"
+        #     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+        #     print(f'file saved @:\n{fn}')
+        #     plt.close('all')
+
+
+    # if not too_large:
+    #     fig.subplots_adjust(wspace=0.05,hspace=0.3)
+    #     fn = f"{dest}/{model.month_names_joined}_RFplot_90th_percentile_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    #     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    #     print(f'file saved @:\n{fn}')
+        # plt.close('all')
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_90th_percentile_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_90th_percentile_ANOM_v1_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
+
+    print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
+
 
 
 def print_rf_90th_percentile_SGonly_ANOM_plots(model, dest, optimal_k):
@@ -1885,7 +2563,7 @@ def print_rf_90th_percentile_SGonly_ANOM_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_90th_percentile_SGonly_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_90th_percentile_SGonly_ANOM_v1_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -1898,40 +2576,45 @@ def print_rf_rainday_gt1mm_SGonly_ANOM_plots(model, dest, optimal_k):
 
     rfstarttime = timer(); print(f'{utils.time_now()} - Plotting ANOMY of proba of >1mm rainfall over SG now.\nTotal of {optimal_k} clusters, now printing cluster: ')
 
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
-
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    # RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(lon=slice(w_lim_sg, e_lim_sg),lat=slice(s_lim_sg, n_lim_sg))
+  
     w_lim_sg = 103.5
     e_lim_sg = 104.055
     s_lim_sg = 1.1
     n_lim_sg = 1.55
-
-    RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(lon=slice(w_lim_sg, e_lim_sg),lat=slice(s_lim_sg, n_lim_sg))
-    
+        
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon", sgonly=True)
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat", sgonly=True)
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
 
     w = rf_ds_lon.min().values
     e = rf_ds_lon.max().values
     s = rf_ds_lat.min().values
     n = rf_ds_lat.max().values
-
-    baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 1, axis=0) * 100
+    # baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 1, axis=0) * 100
+    baseline = get_RF_calculations(model, criteria="gt1mm", calculation="mean", clus="whole", sgonly=True)
     
-    all_colors = np.vstack(plt.cm.seismic_r(np.linspace(0,1,11)))
+    all_colors = np.vstack(plt.cm.RdBu(np.linspace(0,1,21)))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
-    fig.suptitle(f'Anomaly for rainfall above 1mm, SG-only: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
 
-    levels = [int(i) for i in np.linspace(-100,100,21)]
+    fig.suptitle(f'Anomaly for rainfall above 1mm, SG-only: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
+ 
+    # levels = [int(i) for i in np.linspace(-100,100,21)]
+    # levels = [int(i) for i in np.linspace(-25,25,11)]
+    
+    levels1 = np.linspace(-25,25,101)
+    levels2 = np.arange(-25, 25.5, 2)
 
 
     for clus in range(optimal_k):
         time.sleep(1); gc.collect()
-        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).sel(
-        #     lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N)).precipitationCal.values
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
-        mean = np.mean(data > 1, axis=0)*100        
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
+        # mean = np.mean(data > 1, axis=0)*100  
+        mean = get_RF_calculations(model, 'gt1mm', calculation='mean', clus=clus, sgonly=True)
         mean = mean-baseline
         time.sleep(1); gc.collect()
 
@@ -1956,11 +2639,16 @@ def print_rf_rainday_gt1mm_SGonly_ANOM_plots(model, dest, optimal_k):
         else: ax_rf_plot.set_yticks([])
         
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, mean.T, 
-        levels,
+        # levels,
+        levels1,
         cmap=terrain_map, 
         extend='neither')
         conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
-        ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
+
+        ax_rf_plot.clabel(conts, 
+        # conts.levels, 
+        np.concatenate([levels2[:10], levels2[11:]]),
+        colors='k', inline=True, fmt='%1.f', fontsize=8)
 
         ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
 
@@ -1970,9 +2658,10 @@ def print_rf_rainday_gt1mm_SGonly_ANOM_plots(model, dest, optimal_k):
             axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
                                   loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
                                   bbox_transform=ax_rf_plot.transAxes)
-            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >1 mm rainfall (%) relative to whole dataset baseline', orientation='horizontal', pad=0.01, 
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Anomaly of gt1mm RF (%) relative to whole dataset baseline', orientation='horizontal', pad=0.01, 
             # ticks=np.arange(0,100,10)
-            ticks=levels
+            # ticks=levels
+            ticks = levels2
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
@@ -1982,12 +2671,117 @@ def print_rf_rainday_gt1mm_SGonly_ANOM_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_rainday_gt1mm_SGonly_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_SGonly_ANOM_v3_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
 
+def print_rf_rainday_gt1mm_SGonly_plots(model, dest, optimal_k):
+    """
+    i.e. taking the values but subtracting the baseline
+    """
+
+    rfstarttime = timer(); print(f'{utils.time_now()} - Plotting proba of >1mm rainfall over SG now.\nTotal of {optimal_k} clusters. ')
+
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+
+    w_lim_sg = 103.5
+    e_lim_sg = 104.055
+    s_lim_sg = 1.1
+    n_lim_sg = 1.55
+
+    # RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(lon=slice(w_lim_sg, e_lim_sg),lat=slice(s_lim_sg, n_lim_sg))
+    
+    fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, 'rf_ds_lon', sgonly=True)
+    rf_ds_lat = get_RF_calculations(model, 'rf_ds_lat', sgonly=True)
+
+    w = rf_ds_lon.min().values
+    e = rf_ds_lon.max().values
+    s = rf_ds_lat.min().values
+    n = rf_ds_lat.max().values
+
+    levels = [int(i) for i in np.linspace(25,75,11)]
+    all_colors = np.vstack(plt.cm.RdBu(np.linspace(0,1,21)))
+    terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+
+    fig.suptitle(f'Rainfall predictions, SG-only: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
+    
+    # levels1 = np.linspace(25,75,101)
+    levels1 = np.linspace(0,100,201)
+    # levels2 = np.arange(25, 75.5, 5)
+    levels2 = np.arange(0, 100.5, 5)
+
+    for clus in range(optimal_k):
+        time.sleep(1); gc.collect()
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
+        # mean = np.mean(data > 1, axis=0)*100        
+        # mean = mean-baseline
+        mean = get_RF_calculations(model, 'gt1mm', calculation='mean', clus=clus, sgonly=True)
+        time.sleep(1); gc.collect()
+
+        ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
+        ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
+        ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
+        ax_rf_plot.set_facecolor('w')
+        ax_rf_plot.set_extent([w,e,s,n])
+        ax_rf_plot.coastlines("50m", linewidth=.7, color='k')
+        ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+
+        if clus < model.grid_width: # top ticks  
+            ax_rf_plot.set_xticks([np.ceil(w), np.floor(e)], crs=ccrs.PlateCarree())
+            ax_rf_plot.set_xticklabels([np.ceil(w), np.floor(e)], rotation=55)
+            ax_rf_plot.xaxis.tick_top()
+        else: ax_rf_plot.set_xticks([])
+
+        if clus % model.grid_width == model.grid_width - 1: # right-side ticks
+            ax_rf_plot.set_yticks([s,n], crs=ccrs.PlateCarree())
+            ax_rf_plot.yaxis.set_label_position("right")
+            ax_rf_plot.yaxis.tick_right()
+        else: ax_rf_plot.set_yticks([])
+        
+        RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, mean.T, 
+        # levels,
+        levels1,
+        cmap=terrain_map, 
+        extend='neither')
+
+        conts = ax_rf_plot.contour(RF, 'y', linewidths=0.02)
+        ax_rf_plot.clabel(conts, 
+        # conts.levels, 
+        levels2,
+        colors='k', inline=True, fmt='%1.f', fontsize=8)
+
+        ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
+
+        time.sleep(1); gc.collect()
+
+        if clus == model.cbar_pos: # cbar
+            axins_rf = inset_axes(ax_rf_plot, width='100%', height='100%',
+                                  loc='lower left', bbox_to_anchor=(0, -.8, model.grid_width, .1),
+                                  bbox_transform=ax_rf_plot.transAxes)
+            cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >1 mm rainfall (%)', orientation='horizontal', pad=0.01, 
+            # ticks=np.arange(0,100,10)
+            ticks=levels2
+            )
+            cbar_rf.ax.xaxis.set_ticks_position('top')
+            cbar_rf.ax.xaxis.set_label_position('top')
+
+        print(f'\n{utils.time_now()}: {clus}.. ');
+
+
+    print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
+
+    fig.subplots_adjust(wspace=0.05,hspace=0.3)
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_SGonly_v3_{model.gridsize}x{model.gridsize}"
+    fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
+    plt.close('all')
+    # sys.exit()
+    
 
 def print_rf_heavy_gt50mm_SGonly_ANOM_plots(model, dest, optimal_k):
     """
@@ -1996,37 +2790,42 @@ def print_rf_heavy_gt50mm_SGonly_ANOM_plots(model, dest, optimal_k):
 
     rfstarttime = timer(); print(f'{utils.time_now()} - Plotting ANOM proba of >50mm rainfall over SG now.\nTotal of {optimal_k} clusters, now printing cluster: ')
 
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
 
     w_lim_sg = 103.5
     e_lim_sg = 104.055
     s_lim_sg = 1.1
     n_lim_sg = 1.55
 
-    RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(lon=slice(w_lim_sg, e_lim_sg),lat=slice(s_lim_sg, n_lim_sg))
+    # RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(lon=slice(w_lim_sg, e_lim_sg),lat=slice(s_lim_sg, n_lim_sg))
     
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, 'rf_ds_lon', sgonly=True)
+    rf_ds_lat = get_RF_calculations(model, 'rf_ds_lat', sgonly=True)
 
     w = rf_ds_lon.min().values
     e = rf_ds_lon.max().values
     s = rf_ds_lat.min().values
     n = rf_ds_lat.max().values
 
-    baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 50, axis=0) * 100
+    # baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 50, axis=0) * 100
+    baseline = get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus="whole", sgonly=True)
     
     all_colors = np.vstack(plt.cm.BrBG(np.linspace(0,1,11)))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
+    
+    levels1 = np.linspace(-5,5,81)
+    levels2 = np.arange(-5, 5.5, .5)
 
     fig.suptitle(f'Anomaly for rainfall above 50mm, SG-only: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
  
-    levels = [int(i) for i in np.linspace(-20,20,21)]
+    # levels = [int(i) for i in np.linspace(-20,20,21)]
 
     for clus in range(optimal_k):
         time.sleep(1); gc.collect()
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
-        mean = np.mean(data > 50, axis=0)*100        
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
+        # mean = np.mean(data > 50, axis=0)*100        
+        mean = get_RF_calculations(model, 'gt50mm', calculation='mean', clus=clus, sgonly=True)
         mean = mean-baseline
         time.sleep(1); gc.collect()
 
@@ -2051,11 +2850,17 @@ def print_rf_heavy_gt50mm_SGonly_ANOM_plots(model, dest, optimal_k):
         else: ax_rf_plot.set_yticks([])
         
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, mean.T, 
-        levels,
+        # levels,
+        levels1,
         cmap=terrain_map, 
         extend='both')
+
         conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
-        ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
+
+        ax_rf_plot.clabel(conts, 
+        # conts.levels, 
+        np.concatenate([levels2[:10], levels2[11:]]),
+        colors='k', inline=True, fmt='%1.2f', fontsize=8)
 
         ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
 
@@ -2067,7 +2872,8 @@ def print_rf_heavy_gt50mm_SGonly_ANOM_plots(model, dest, optimal_k):
                                   bbox_transform=ax_rf_plot.transAxes)
             cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >50 mm rainfall (%) relative to whole dataset baseline', orientation='horizontal', pad=0.01, 
             # ticks=np.arange(0,100,10)
-            ticks=levels
+            # ticks=levels
+            ticks=levels2
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
@@ -2077,7 +2883,7 @@ def print_rf_heavy_gt50mm_SGonly_ANOM_plots(model, dest, optimal_k):
     print(f"\n -- Time taken is {utils.time_since(rfstarttime)}\n")
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_RFplot_heavy_gt50mm_SGonly_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_SGonly_ANOM_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
@@ -2182,7 +2988,7 @@ def print_quiver_Regionalonly(model, dest, optimal_k):
         print(f"=> Quiver plots plotted for {pressure}hpa")   
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_qp_Regionalonly-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.month_names_joined}_qp_Regionalonly-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
@@ -2376,7 +3182,7 @@ def print_RHUM_Regionalonly(model, dest, optimal_k):
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum_Regionalonly-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.month_names_joined}_rhum_Regionalonly-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
@@ -2447,7 +3253,7 @@ def print_RHUM_ANOM_Regionalonly(model, dest, optimal_k):
 
             Rhum = ax_rhum.contourf(lon, lat, mean,
                                     # np.linspace(model.min_maxes['rhum_min'], model.min_maxes['rhum_max'], 21),
-                                    levels, cmap='jet_r', extend='both')
+                                    levels, cmap='BrBG', extend='both')
             conts = ax_rhum.contour(Rhum, 'k:', linewidths=.5)
             ax_rhum.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=10)
 
@@ -2461,13 +3267,16 @@ def print_RHUM_ANOM_Regionalonly(model, dest, optimal_k):
                 cbar_rhum.ax.xaxis.set_ticks_position('top')
                 cbar_rhum.ax.xaxis.set_label_position('top')
 
+            # break
+
         print(f"==> Rhum plots plotted for {pressure}hpa")
 
         fig.subplots_adjust(wspace=0.05,hspace=0.3)
-        fn = f"{dest}/{model.RUN_time}_{utils.time_now()}-{model.month_names_joined}_rhum_Regionalonly_ANOM-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
+        fn = f"{dest}/{model.month_names_joined}_rhum_Regionalonly_ANOM_v2-at-{pressure}hpa_{model.gridsize}x{model.gridsize}"
         fig.savefig(fn, bbox_inches='tight', pad_inches=1)
         print(f'file saved @:\n{fn}')
         plt.close('all')
+        # sys.exit()
 
     print(f"\n\nTime taken to plot RHUM ANOMALIES for regional: {utils.time_since(rhumstarttime)}.")
 
@@ -2481,34 +3290,44 @@ def print_rf_gt1mm_ANOM_Regionalonly(model, dest, optimal_k):
     s_lim_regional = -4.5
     n_lim_regional = 8
 
-    RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(
-        lon=slice(w_lim_regional, e_lim_regional),lat=slice(s_lim_regional, n_lim_regional))
+    # RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(
+    #     lon=slice(w_lim_regional, e_lim_regional),lat=slice(s_lim_regional, n_lim_regional))
+
+    # fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
 
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, 'rf_ds_lon', regionalonly=True)
+    rf_ds_lat = get_RF_calculations(model, 'rf_ds_lat', regionalonly=True)
+    baseline = (get_RF_calculations(model, criteria="gt1mm", calculation="mean", clus="whole", regionalonly=True))
 
     w = rf_ds_lon.min().values
     e = rf_ds_lon.max().values
     s = rf_ds_lat.min().values
     n = rf_ds_lat.max().values
 
-    baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 1, axis=0) * 100
+    # baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 1, axis=0) * 100
 
-    all_colors = np.vstack(plt.cm.seismic_r(np.linspace(0,1,11)))
+    all_colors = np.vstack(plt.cm.seismic_r(np.linspace(0,1,51)))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
     fig.suptitle(f'Anomaly for rainfall above 1mm, regional extent, for model of: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
 
-    levels = [int(i) for i in np.linspace(-100,100,21)]
+    # levels = [int(i) for i in np.linspace(-100,100,21)]
+    
+    levels1 = np.linspace(-100,100,81)
+    levels2 = np.arange(-100, 105, 5)
 
 
     for clus in range(optimal_k):
         time.sleep(1); gc.collect()
         print(f'\n{utils.time_now()}: {clus}.. ');
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
-        mean = np.mean(data > 1, axis=0)*100        
-        mean = mean-baseline
+        data = get_RF_calculations(model, criteria="gt1mm", calculation="mean", clus=clus, regionalonly=True)
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
+        # mean = np.mean(data > 1, axis=0)*100        
+        # mean = data-baseline        
+        mean = data-baseline
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -2532,11 +3351,15 @@ def print_rf_gt1mm_ANOM_Regionalonly(model, dest, optimal_k):
         else: ax_rf_plot.set_yticks([])
 
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, mean.T, 
-        levels,
+        # levels,
+        levels1,
         cmap=terrain_map, 
         extend='neither')
-        conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
-        ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
+        conts = ax_rf_plot.contour(RF, 'w', linewidths=0.2)
+        ax_rf_plot.clabel(conts, 
+        # conts.levels, 
+        np.concatenate([levels2[:19], levels2[22:]]),
+        colors='k', inline=True, fmt='%1.f', fontsize=7)
 
         ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
 
@@ -2548,56 +3371,68 @@ def print_rf_gt1mm_ANOM_Regionalonly(model, dest, optimal_k):
                                 bbox_transform=ax_rf_plot.transAxes)
             cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >1 mm rainfall (%) relative to whole dataset baseline', orientation='horizontal', pad=0.01, 
             # ticks=np.arange(0,100,10)
-            ticks=levels
+            # ticks=levels
+            ticks=levels2
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
 
+        # break
 
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_Regionalonly_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_rainday_gt1mm_Regionalonly_ANOM_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
+    # sys.exit()
 
 
 def print_rf_gt50mm_ANOM_Regionalonly(model, dest, optimal_k):
     print('Printing RF gt50mm ANOM_regional')
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path)
 
     w_lim_regional = 96
     e_lim_regional = 111.6
     s_lim_regional = -4.5
     n_lim_regional = 8
 
-    RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(
-        lon=slice(w_lim_regional, e_lim_regional),lat=slice(s_lim_regional, n_lim_regional))
+    # RFprec_to_ClusterLabels_dataset = RFprec_to_ClusterLabels_dataset.sel(
+    #     lon=slice(w_lim_regional, e_lim_regional),lat=slice(s_lim_regional, n_lim_regional))
+
+    # fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
+    # rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
+    # rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
 
     fig, gs_rf_plot = create_multisubplot_axes(optimal_k)
-    rf_ds_lon = RFprec_to_ClusterLabels_dataset.lon
-    rf_ds_lat = RFprec_to_ClusterLabels_dataset.lat
+    rf_ds_lon = get_RF_calculations(model, 'rf_ds_lon', regionalonly=True)
+    rf_ds_lat = get_RF_calculations(model, 'rf_ds_lat', regionalonly=True)
+    baseline = (get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus="whole", regionalonly=True))
 
     w = rf_ds_lon.min().values
     e = rf_ds_lon.max().values
     s = rf_ds_lat.min().values
     n = rf_ds_lat.max().values
 
-    baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 50, axis=0) * 100
+    # baseline = np.mean(RFprec_to_ClusterLabels_dataset.precipitationCal > 50, axis=0) * 100
 
     all_colors = np.vstack(plt.cm.seismic_r(np.linspace(0,1,11)))
     terrain_map = colors.LinearSegmentedColormap.from_list('terrain_map', all_colors)
 
     fig.suptitle(f'Anomaly for rainfall above 50mm, regional extent, for model of: {model.domain[0]}S {model.domain[1]}N {model.domain[2]}W {model.domain[3]}E', fontweight='bold')
 
-    levels = [int(i) for i in np.linspace(-100,100,21)]
+    # levels = [int(i) for i in np.linspace(-100,100,21)]
+    
+    levels1 = np.linspace(-20,20,81)
+    levels2 = np.arange(-19, 21, 2)
 
 
     for clus in range(optimal_k):
         time.sleep(1); gc.collect()
         print(f'\n{utils.time_now()}: {clus}.. ');
-        data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
-        mean = np.mean(data > 50, axis=0)*100        
-        mean = mean-baseline
+        data = get_RF_calculations(model, criteria="gt50mm", calculation="mean", clus=clus, regionalonly=True)
+        # data = RFprec_to_ClusterLabels_dataset.where(RFprec_to_ClusterLabels_dataset.cluster==clus, drop=True).precipitationCal.values
+        # mean = np.mean(data > 50, axis=0)*100      
+        mean = data-baseline
         time.sleep(1); gc.collect()
 
         ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
@@ -2621,11 +3456,14 @@ def print_rf_gt50mm_ANOM_Regionalonly(model, dest, optimal_k):
         else: ax_rf_plot.set_yticks([])
 
         RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, mean.T, 
-        levels,
+        levels1,
         cmap=terrain_map, 
         extend='neither')
         conts = ax_rf_plot.contour(RF, 'w', linewidths=0)
-        ax_rf_plot.clabel(conts, conts.levels, colors='k', inline=True, fmt='%1.f', fontsize=8)
+        ax_rf_plot.clabel(conts, 
+        # conts.levels, 
+        np.concatenate([levels2[:9], levels2[11:]]),
+        colors='k', inline=True, fmt='%1.f', fontsize=8)
 
         ax_rf_plot.set_title(f"cluster no.{clus+1}", loc='left')
 
@@ -2637,40 +3475,43 @@ def print_rf_gt50mm_ANOM_Regionalonly(model, dest, optimal_k):
                                 bbox_transform=ax_rf_plot.transAxes)
             cbar_rf = fig.colorbar(RF, cax=axins_rf, label='Proportion of grid with >50 mm rainfall (%) relative to whole dataset baseline', orientation='horizontal', pad=0.01, 
             # ticks=np.arange(0,100,10)
-            ticks=levels
+            # ticks=levels
+            ticks=levels2
             )
             cbar_rf.ax.xaxis.set_ticks_position('top')
             cbar_rf.ax.xaxis.set_label_position('top')
-
-
+        
     fig.subplots_adjust(wspace=0.05,hspace=0.3)
-    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_Regionalonly_ANOM_v1_{model.gridsize}x{model.gridsize}"
+    fn = f"{dest}/{model.month_names_joined}_RFplot_heavy_gt50mm_Regionalonly_ANOM_v2_{model.gridsize}x{model.gridsize}"
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
     print(f'file saved @:\n{fn}')
     plt.close('all')
 
 
-def get_baseline_gt1mm(RFprec_to_ClusterLabels_dataset):
-    data = (RFprec_to_ClusterLabels_dataset.precipitationCal > 1).values
-    return np.mean(data, axis=0) * 100
+# def get_baseline_gt1mm(RFprec_to_ClusterLabels_dataset):
+#     data = (RFprec_to_ClusterLabels_dataset.precipitationCal > 1).values
+#     return np.mean(data, axis=0) * 100
 
     
-def get_baseline_gt50mm(RFprec_to_ClusterLabels_dataset):
-    data = (RFprec_to_ClusterLabels_dataset.precipitationCal > 50).values
-    return np.mean(data, axis=0) * 100
+# def get_baseline_gt50mm(RFprec_to_ClusterLabels_dataset):
+#     data = (RFprec_to_ClusterLabels_dataset.precipitationCal > 50).values
+#     return np.mean(data, axis=0) * 100
 
     
-def get_baseline_90perc(RFprec_to_ClusterLabels_dataset):
-    data = RFprec_to_ClusterLabels_dataset.precipitationCal.values
-    return np.percentile(data, 90, axis=0)
+# def get_baseline_90perc(RFprec_to_ClusterLabels_dataset):
+#     data = RFprec_to_ClusterLabels_dataset.precipitationCal.values
+#     return np.percentile(data, 90, axis=0)
 
 
-def plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filename, label, model, dest, RFprec_to_ClusterLabels_dataset):
-    baseline = baseline(RFprec_to_ClusterLabels_dataset)
-    
+# def plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filename, label, model, dest, RFprec_to_ClusterLabels_dataset):
+def plot_baseline(colscheme, baseline_criteria, calculation, levels, ticks, plotparams, title, filename, label, model, dest):
+    # baseline = baseline(RFprec_to_ClusterLabels_dataset)
+    baseline = get_RF_calculations(model, baseline_criteria, calculation=calculation, clus="whole")
+    rf_ds_lon = get_RF_calculations(model, criteria="rf_ds_lon")
+    rf_ds_lat = get_RF_calculations(model, criteria="rf_ds_lat")
+
     fig = plt.Figure(figsize=(15,10))
     ax_rf_plot = fig.add_subplot(111, projection=ccrs.PlateCarree())
-    # ax_rf_plot = fig.add_subplot(gs_rf_plot[clus], projection=ccrs.PlateCarree())
     ax_rf_plot.set_title(f"{title}")
     ax_rf_plot.xaxis.set_major_formatter(model.lon_formatter)
     ax_rf_plot.yaxis.set_major_formatter(model.lat_formatter)
@@ -2680,17 +3521,16 @@ def plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filenam
     ax_rf_plot.add_feature(cf.BORDERS, linewidth=.5, color=plotparams[2], linestyle='dashed')
 
     ax_rf_plot.set_xticks([np.round(i,0) for i in np.linspace(model.LON_W,model.LON_E,9)], crs=ccrs.PlateCarree())
-#     ax_rf_plot.set_xticklabels([int(i) for i in np.linspace(model.LON_W,model.LON_E,10)], rotation=55)
-
     ax_rf_plot.xaxis.tick_top()
 
     ax_rf_plot.set_yticks([np.round(i,0) for i in np.linspace(model.LAT_S,model.LAT_N,9)], crs=ccrs.PlateCarree())
-    # ax_rf_plot.set_yticklabels([int(i) for i in np.linspace(model.LAT_S,model.LAT_N,10)], rotation=55)
     ax_rf_plot.yaxis.set_label_position("right")
     ax_rf_plot.yaxis.tick_right()
 
-    RF = ax_rf_plot.contourf(RFprec_to_ClusterLabels_dataset.lon, 
-                            RFprec_to_ClusterLabels_dataset.lat, baseline.T, 
+    # RF = ax_rf_plot.contourf(RFprec_to_ClusterLabels_dataset.lon, 
+    #                         RFprec_to_ClusterLabels_dataset.lat, baseline.T, 
+    #                         levels, cmap=colscheme, extend='neither')
+    RF = ax_rf_plot.contourf(rf_ds_lon, rf_ds_lat, baseline.T, 
                             levels, cmap=colscheme, extend='neither')
     conts = ax_rf_plot.contour(RF, linewidths=0,
                             levels=levels,
@@ -2702,6 +3542,7 @@ def plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filenam
 
     fn = f'{dest}/{model.month_names_joined}_{filename}_{model.gridsize}x{model.gridsize}'
     fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+    print(f'file saved @:\n{fn}')
     plt.close('all')
 
 
@@ -2709,8 +3550,8 @@ def plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filenam
 def print_RF_baselines(model, dest, optimal_k, too_large):
     print(f'{utils.time_now()} - Printing RF gt1mm, gt50mm and 90th percentile baselines.')
 
-    RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
-            lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
+    # RFprec_to_ClusterLabels_dataset = utils.open_pickle(model.RFprec_to_ClusterLabels_dataset_path).sel(
+    #         lon=slice(model.LON_W, model.LON_E), lat=slice(model.LAT_S, model.LAT_N))
     
     a = plt.cm.YlOrRd(np.linspace(.9, .2, 5))
     b = plt.cm.YlGnBu(np.linspace(.2, .8, 10))
@@ -2732,9 +3573,16 @@ def print_RF_baselines(model, dest, optimal_k, too_large):
     #baseline_gt1mm = np.mean((RFprec_to_ClusterLabels_dataset.precipitationCal > 1).values, axis=0)*100
     #baseline_gt50mm = np.mean((RFprec_to_ClusterLabels_dataset.precipitationCal > 50).values, axis=0)*100
     #baseline_90perc = np.percentile(RFprec_to_ClusterLabels_dataset.precipitationCal,90,axis=0)
-    baseline_gt1mm = get_baseline_gt1mm
-    baseline_gt50mm = get_baseline_gt50mm
-    baseline_90perc = get_baseline_90perc
+    # baseline_gt1mm = get_baseline_gt1mm
+    # baseline_gt50mm = get_baseline_gt50mm
+    # baseline_90perc = get_baseline_90perc
+    baseline_gt1mm_criteria = "gt1mm"
+    baseline_gt50mm_criteria = "gt50mm"
+    baseline_90perc_criteria = "90perc"
+
+    calculation_gt1mm = "mean"
+    calculation_gt50mm = "mean"
+    calculation_90perc = "90perc"
 
     levels_gt1mm = np.linspace(0,100,11)
     levels_gt50mm = np.linspace(0,100,101)
@@ -2749,28 +3597,34 @@ def print_RF_baselines(model, dest, optimal_k, too_large):
     plotparams_90perc = ['white', 'k','k']
 
     colschemes = [colscheme_gt1mm, colscheme_gt50mm, colscheme_90perc]
-    baselines = [baseline_gt1mm, baseline_gt50mm, baseline_90perc]
+    # baselines = [baseline_gt1mm, baseline_gt50mm, baseline_90perc]
+    baseline_criterias = [baseline_gt1mm_criteria, baseline_gt50mm_criteria, baseline_90perc_criteria]
+    calculation_ls = [calculation_gt1mm, calculation_gt50mm, calculation_90perc]
     levels_ls = [levels_gt1mm, levels_gt50mm, levels_90perc]
     ticks_ls = [ticks_gt1mm, ticks_gt50mm, ticks_90perc]
     plotparams_ls = [plotparams_gt1mm, plotparams_gt50mm, plotparams_90perc]
     titles = ['Plot of gt1mm baseline',
             'Plot of gt50mm baseline',
             'Plot of 90-percentile baseline']
-    filenames = ['RFplot_gt1mm_baseline', 
+    filenames = ['RFplot_rainday_gt1mm_baseline', 
     'RFplot_heavy_gt50mm_baseline', 
-    'RFplot_90th_perc_baseline']
+    'RFplot_90th_percentile_baseline']
     labels = ['Proportion of grid with gt1mm RF (%)',
             'Proportion of grid with gt50mm RF (%)',
             '90th percentile average over grid (mm)']
     
     count=0
-    for colscheme, baseline, levels, ticks, plotparams, title, filename, label in zip(
-    colschemes, baselines, levels_ls, ticks_ls, plotparams_ls, titles, filenames, labels):
-        if count == 2 and too_large: # 90th perc baseline is not possible with my machine if domain extent is too huge
-            continue
+    # for colscheme, baseline, levels, ticks, plotparams, title, filename, label in zip(
+    # colschemes, baselines, levels_ls, ticks_ls, plotparams_ls, titles, filenames, labels):
+    for colscheme, baseline_criteria, calculation, levels, ticks, plotparams, title, filename, label in zip(
+    colschemes, baseline_criterias, calculation_ls, levels_ls, ticks_ls, plotparams_ls, titles, filenames, labels):
+        #print(f'ERRRRRRRRR {count}')
         count += 1
+        if count != 3: # 90th perc baseline is not possible with my machine if domain extent is too huge
+            continue
         print(f'{utils.time_now()} - Plotting {filename}...')
-        plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filename, label, model, dest, RFprec_to_ClusterLabels_dataset)
+        # plot_baseline(colscheme, baseline, levels, ticks, plotparams, title, filename, label, model, dest, RFprec_to_ClusterLabels_dataset)
+        plot_baseline(colscheme, baseline_criteria, calculation, levels, ticks, plotparams, title, filename, label, model, dest)
 
     
 def get_baseline_quiver(target_ds_withClusterLabels, pressure, skip_interval):
@@ -2850,6 +3704,93 @@ def print_quiver_baseline(model, dest, optimal_k):
         print(f'file saved @:\n{fn}')
         plt.close('all')
 
+def print_quiver_baseline_regional(model, dest, optimal_k):
+    print(f'{utils.time_now()} - Printing quiver baselines.')
+
+    target_ds_withClusterLabels = utils.open_pickle(model.target_ds_withClusterLabels_path)
+    target_ds_withClusterLabels = utils.remove_expver(target_ds_withClusterLabels)
+
+    w_lim_regional = 96
+    e_lim_regional = 111.6
+    s_lim_regional = -4.5
+    n_lim_regional = 8
+
+    target_ds_withClusterLabels = target_ds_withClusterLabels.sel(lon=slice(w_lim_regional, e_lim_regional),lat=slice(n_lim_regional, s_lim_regional))
+
+    area = (model.LON_E-model.LON_W)*(model.LAT_N-model.LAT_S)
+    coastline_lw = .8
+    minshaft=2; scale=33
+    if area > 3000: skip_interval=4
+    elif 2000 < area <= 3000: skip_interval=3
+    elif 500 < area <= 2000 : skip_interval=2; minshaft=3; scale=33
+    else: skip_interval=1; minshaft=3; scale=33
+
+    skip_interval=1
+    
+    # lon_qp = model.X[::skip_interval].values
+    # lat_qp = model.Y[::skip_interval].values
+    lon_qp = target_ds_withClusterLabels.lon
+    lat_qp = target_ds_withClusterLabels.lat
+    
+    w = lon_qp.min().data    
+    e = lon_qp.max().data
+    s = lat_qp.min().data
+    n = lat_qp.max().data
+
+    baseline = get_baseline_quiver
+    title = 'Quiver plot baseline (Regional-only)'
+    filename = 'qp_baseline_Regionalonly'
+    label = 'Quiver (m/s)'
+
+    print(f'{utils.time_now()} - Plotting {filename}...')
+
+    for idx, pressure in enumerate(model.uwnd_vwnd_pressure_lvls):
+        print(f'Currently on {pressure}hpa...')
+        fig = plt.Figure(figsize=(15,10))
+        ax_qp = fig.add_subplot(111, projection=ccrs.PlateCarree())
+    
+        wndspd, u, v = get_baseline_quiver(target_ds_withClusterLabels, pressure, skip_interval)
+
+        ax_qp.xaxis.set_major_formatter(model.lon_formatter)
+        ax_qp.yaxis.set_major_formatter(model.lat_formatter)
+        ax_qp.set_facecolor('white')
+        ax_qp.add_feature(cf.LAND,facecolor='silver')
+        # ax_qp.set_extent([model.LON_W-1, model.LON_E+1, model.LAT_S-1, model.LAT_N+1])
+        ax_qp.set_extent([w,e,s,n])
+
+        
+        ax_qp.set_xticks(np.linspace(w,e, 5), crs=ccrs.PlateCarree())
+        ax_qp.set_xticklabels(np.linspace(w,e, 5), rotation=55) 
+        # ax_qp.set_xticks([model.LON_W, (model.LON_E - model.LON_W)/2 + model.LON_W, model.LON_E], crs=ccrs.PlateCarree())
+        ax_qp.xaxis.tick_top()
+
+        ax_qp.set_yticks(np.linspace(s,n, 5), crs=ccrs.PlateCarree())
+        # ax_qp.set_yticks([model.LAT_S, (model.LAT_N - model.LAT_S)/2 + model.LAT_S, model.LAT_N], crs=ccrs.PlateCarree())
+        ax_qp.yaxis.set_label_position("right")
+        ax_qp.yaxis.tick_right()
+
+        ax_qp.set_title(f"Pressure: {pressure} hpa, {title}", loc='left')
+
+        spd_plot = ax_qp.contourf(lon_qp, lat_qp, wndspd, np.linspace(0,18,19), 
+                                    transform=ccrs.PlateCarree(), cmap='terrain_r', 
+                                    alpha=1)
+        Quiver = ax_qp.quiver(lon_qp, lat_qp, u, v, color='Black', minshaft=minshaft, scale=scale)  
+        conts = ax_qp.contour(spd_plot, 'w', linewidths=.3)
+
+        ax_qp.coastlines("50m", linewidth=coastline_lw, color='orangered')
+        ax_qp.add_feature(cf.BORDERS, linewidth=.5, color='k', linestyle='dashed')
+        ax_qp.clabel(conts, conts.levels, inline=True, fmt='%1.f', fontsize=5)
+
+
+        cbar_qp = fig.colorbar(spd_plot, label=label, orientation='horizontal')
+        cbar_qp.ax.xaxis.set_ticks_position('top')
+        cbar_qp.ax.xaxis.set_label_position('top')
+
+        fig.subplots_adjust(wspace=0.05,hspace=0.3)
+        fn = f'{dest}/{model.month_names_joined}_{filename}-at-{pressure}hpa_{model.gridsize}x{model.gridsize}'
+        fig.savefig(fn, bbox_inches='tight', pad_inches=1)
+        print(f'file saved @:\n{fn}')
+        plt.close('all')
 
     
 def get_baseline_rhum(target_ds_withClusterLabels, pressure):

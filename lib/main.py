@@ -17,8 +17,8 @@ domains_NE_mon = [
 ]
 
 domains_SW_mon = [
-   [-4.0, 8.0, 93.5, 114.0], # 246.0 DONE
    [-30.0, 30.0, 65.0, 140.0], # 4526.0 DONE 
+   [-4.0, 8.0, 93.5, 114.0], # 246.0 DONE
    
 ## Positive results, but ultimately thrown because above 2 provides nice comparisons!
    #[-6.0, 10.0, 82.5, 127.5], # 720.0 DONE
@@ -118,10 +118,10 @@ lon_max = np.max([i[3] for i in all_ds])
 domain_limits = (lat_min, lat_max, lon_min, lon_max)
 
 
-seq_strings = ("SW_mon", "NE_mon", "inter_mon")
+seq_strings = ("SW_mon", "inter_mon", "NE_mon", )
 successful_evals = []
 
-for i,d in enumerate((domains_SW_mon, domains_NE_mon, domains_inter_mon)):
+for i,d in enumerate((domains_SW_mon, domains_inter_mon, domains_NE_mon, )):
     perms = [(dims, seq_strings[i], hpparam, domain_limits) for dims in d]
     for p in perms: print(f'Generating optimal cluster number (k) for {seq_strings[i]}: {p}, ')
     for p in perms:

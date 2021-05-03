@@ -18,8 +18,8 @@ from tkinter import messagebox
 root = tkinter.Tk()
 root.withdraw()
 
-RAM_USAGE_THRESHOLD = 95
-SWAP_USAGE_THRESHOLD = 98
+RAM_USAGE_THRESHOLD = 90
+SWAP_USAGE_THRESHOLD = 95
 MAX_NUM_PROCESS_KILL = 100
 
 def main():
